@@ -49,8 +49,8 @@
 (dolist (b (query-triples '((?who :is-a :philosopher))))
   (format t "  who: ~a~%" (cdr (assoc '?who b))))
 
-(format t
-        "~%Query 2: Who lives in Paris AND is a philosopher? (join)~%")
+(format t "~%Query 2: Who lives in Paris AND is a philosopher? ~
+           (relational join)~%")
 (dolist (b (query-triples '((?who :lives-in :paris)
                             (?who :is-a :philosopher))))
   (format t "  who: ~a~%" (cdr (assoc '?who b))))

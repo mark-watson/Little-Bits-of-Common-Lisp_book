@@ -42,9 +42,9 @@ Every program begins with a comment showing exactly how to run it. The chapters 
 
 | Chapter | Needs beyond SBCL | Output in this book |
 |---|---|---|
-| Apple Foundation Models | macOS + Apple Intelligence + `fm` | Illustrative (test machine lacked it) |
+| Apple Foundation Models | macOS + Apple Intelligence + `fm` | Illustrative (needs `sudo fm license`) |
 | Gemini | Quicklisp + `GOOGLE_API_KEY` | Real transcript |
-| Ollama | Local `ollama serve` + pulled model | Illustrative (no server running) |
+| Ollama | Local `ollama serve` + pulled model | Real transcript |
 | Web search (Exa, Brave) | Quicklisp + two API keys | Real transcript, abridged |
 | SPARQL | Quicklisp | Real transcript |
 | Lightpanda | `lightpanda` binary | Real transcript, abridged |
@@ -63,12 +63,14 @@ Recent versions of macOS ship with Apple's on-device foundation model, exposed t
 ## The Code
 
 ```lisp
-;; sbcl --script apple-system-model.lisp   (macOS on-device Apple Foundation Model via `fm`)
+;; sbcl --script apple-system-model.lisp (macOS Apple Foundation Model)
 (require :asdf)
 
 (defun apple-fm (prompt)
   (string-trim '(#\Space #\Newline #\Return)
-               (uiop:run-program (list "fm" "respond" "--no-stream" prompt) :output :string)))
+               (uiop:run-program
+                (list "fm" "respond" "--no-stream" prompt)
+                :output :string)))
 
 (print (apple-fm "what is 1 + 10?"))
 ```
@@ -81,13 +83,17 @@ Recent versions of macOS ship with Apple's on-device foundation model, exposed t
 
 ## Running It
 
-You need macOS with Apple Intelligence enabled and the `fm` tool available on your system. Then:
+You need macOS with Apple Intelligence enabled and the `fm` tool license accepted (`sudo fm license`). Then:
 
 ```bash
 $ sbcl --script apple-system-model.lisp
 ```
 
-The program prints the model's reply as a Lisp string — for this prompt, something like `"11"`. The exact wording varies from run to run, as with any language model. (No transcript is shown: this output needs Apple Intelligence enabled with the `fm` tool on your `PATH`, which the test machine lacked — run it on your own Mac.)
+The program prints the model's reply as a Lisp string:
+
+```text
+"1 + 10 is 11."
+```
 
 ## Using It
 
@@ -107,16 +113,25 @@ This program calls Google's Gemini API and parses the JSON reply, in eighteen li
 (ql:quickload :com.inuoe.jzon :silent t)
 
 (defun gemini (prompt &optional (model "gemini-3.5-flash-lite"))
-  (let ((j (com.inuoe.jzon:parse
-            (uiop:run-program
-             (list "curl" "-s"
-                   (format nil "https://generativelanguage.googleapis.com/v1beta/models/~a:generateContent" model)
-                   "-H" "Content-Type: application/json"
-                   "-H" (format nil "x-goog-api-key: ~a" (uiop:getenv "GOOGLE_API_KEY"))
-                   "-d" (format nil "{\"contents\":[{\"parts\":[{\"text\":~a}]}]}"
-                                (com.inuoe.jzon:stringify prompt)))
-             :output :string))))
-    (gethash "text" (aref (gethash "parts" (gethash "content" (aref (gethash "candidates" j) 0))) 0))))
+  (let* ((base
+          "https://generativelanguage.googleapis.com/v1beta/models/")
+         (url (format nil "~a~a:generateContent" base model))
+         (key (uiop:getenv "GOOGLE_API_KEY"))
+         (body (format nil
+                       "{\"contents\":[{\"parts\":[{\"text\":~a}]}]}"
+                       (com.inuoe.jzon:stringify prompt)))
+         (j (com.inuoe.jzon:parse
+             (uiop:run-program
+              (list "curl" "-s" url
+                    "-H" "Content-Type: application/json"
+                    "-H" (format nil "x-goog-api-key: ~a" key)
+                    "-d" body)
+              :output :string))))
+    (gethash "text"
+             (aref (gethash "parts"
+                            (gethash "content"
+                                     (aref (gethash "candidates" j) 0)))
+                   0))))
 
 (print (gemini "what is 1 + 10?"))
 ```
@@ -160,14 +175,21 @@ The same pattern as the Gemini chapter, but pointed at a model running on your o
 (ql:quickload :com.inuoe.jzon :silent t)
 
 (defun ollama (prompt &optional (model "qwen3.5:4b"))
-  (gethash "response"
-           (com.inuoe.jzon:parse
-            (uiop:run-program
-             (list "curl" "-s" "http://localhost:11434/api/generate" "-d"
-                   (format nil "{\"model\":~a,\"prompt\":~a,\"stream\":false,\"think\":false}"
-                           (com.inuoe.jzon:stringify model)
-                           (com.inuoe.jzon:stringify prompt)))
-             :output :string))))
+  (let* ((fmt
+          (concatenate
+           'string
+           "{\"model\":~a,\"prompt\":~a,"
+           "\"stream\":false,\"think\":false}"))
+         (body (format nil fmt
+                       (com.inuoe.jzon:stringify model)
+                       (com.inuoe.jzon:stringify prompt))))
+    (gethash "response"
+             (com.inuoe.jzon:parse
+              (uiop:run-program
+               (list "curl" "-s"
+                     "http://localhost:11434/api/generate"
+                     "-d" body)
+               :output :string)))))
 
 (print (ollama "what is 1 + 10?"))
 ```
@@ -187,7 +209,11 @@ Install Ollama, pull the model (`ollama pull qwen3.5:4b`), make sure the server 
 $ sbcl --script ollama.lisp
 ```
 
-The model's answer prints as a Lisp string, for example `"11"`. (Illustrative rather than a transcript: it needs `ollama serve` running locally with the model pulled — see the Ollama setup docs.)
+Actual output (the exact wording varies from run to run):
+
+```text
+"The result of $1 + 10$ is **11**."
+```
 
 ## Using It
 
@@ -202,35 +228,53 @@ Two search-engine APIs, one calling convention: both `esearch` and `bsearch` tak
 ## The Code
 
 ```lisp
-;; sbcl --script search.lisp   (needs Quicklisp, curl, EXA_SEARCH_API_KEY, BRAVE_SEARCH_API_KEY)
+;; sbcl --script search.lisp (Exa and Brave Search APIs)
 #-quicklisp (load "~/quicklisp/setup.lisp")
 (ql:quickload :com.inuoe.jzon :silent t)
 
 (defun curl-json (&rest args)
-  (com.inuoe.jzon:parse (uiop:run-program (list* "curl" "-s" args) :output :string)))
+  (com.inuoe.jzon:parse
+   (uiop:run-program (list* "curl" "-s" args) :output :string)))
 
 (defun results (items text-key)
   "List of (title url text) for each hit."
-  (map 'list (lambda (h) (list (gethash "title" h) (gethash "url" h) (gethash text-key h))) items))
+  (map 'list
+       (lambda (h)
+         (list (gethash "title" h)
+               (gethash "url" h)
+               (gethash text-key h)))
+       items))
 
 (defun esearch (query &optional (n 5))
-  (results (gethash "results"
-                    (curl-json "https://api.exa.ai/search"
-                               "-H" (format nil "x-api-key: ~a" (uiop:getenv "EXA_SEARCH_API_KEY"))
-                               "-H" "Content-Type: application/json"
-                               "-d" (format nil "{\"query\":~a,\"numResults\":~d,\"contents\":{\"text\":{\"maxCharacters\":300}}}"
-                                            (com.inuoe.jzon:stringify query) n)))
-           "text"))
+  (results
+   (gethash "results"
+            (curl-json
+             "https://api.exa.ai/search"
+             "-H" (format nil "x-api-key: ~a"
+                          (uiop:getenv "EXA_SEARCH_API_KEY"))
+             "-H" "Content-Type: application/json"
+             "-d" (format nil
+                   (concatenate
+                    'string
+                    "{\"query\":~a,\"numResults\":~d,"
+                    "\"contents\":{\"text\":{\"maxCharacters\":300}}}")
+                   (com.inuoe.jzon:stringify query) n)))
+   "text"))
 
 (defun bsearch (query &optional (n 5))
-  (results (gethash "results"
-                    (gethash "web"
-                             (curl-json "-G" "https://api.search.brave.com/res/v1/web/search"
-                                        "-H" (format nil "X-Subscription-Token: ~a" (uiop:getenv "BRAVE_SEARCH_API_KEY"))
-                                        "-H" "Accept: application/json"
-                                        "--data-urlencode" (format nil "q=~a" query)
-                                        "--data-urlencode" (format nil "count=~d" n))))
-           "description"))
+  (results
+   (gethash
+    "results"
+    (gethash
+     "web"
+     (curl-json
+      "-G" "https://api.search.brave.com/res/v1/web/search"
+      "-H" (format nil "X-Subscription-Token: ~a"
+                   (uiop:getenv "BRAVE_SEARCH_API_KEY"))
+      "-H" "Accept: application/json"
+      "--data-urlencode" (format nil "q=~a" query)
+      "--data-urlencode" (format nil "count=~d" n))))
+   "description"))
 
 (print (esearch "Common Lisp SPARQL client" 3))
 (print (bsearch "Sedona Arizona hiking" 3))
@@ -251,18 +295,42 @@ $ export BRAVE_SEARCH_API_KEY=...
 $ sbcl --script search.lisp
 ```
 
-The program prints two lists, one per engine; each element is a `(title url text)` list. Actual output, abridged (each text field runs to a few hundred characters; only the first hit per engine is shown in full):
+The program prints two lists, one per engine; each element is a `(title url text)` list. Actual output (with long README metadata lines in the Exa text snippets trimmed for brevity):
 
 ```text
-(("mark-watson/sparql" "https://github.com/mark-watson/sparql"
+(("mmontone/cl-sparql" "https://github.com/mmontone/cl-sparql"
+  "# mmontone/cl-sparql
+SPARQL query builder for Common Lisp
+- Stars: 12
+- License: MIT License ...")
+ ("mark-watson/sparql" "https://github.com/mark-watson/sparql"
   "# Repository: mark-watson/sparql
+Common Lisp SPARQL client code - see book \"Loving Common Lisp,
+or the Savvy Programmer's Secret Weapon\"
+- Primary language: Common Lisp ...")
+ ("madnificent/cl-fuseki" "https://github.com/madnificent/cl-fuseki"
+  "# madnificent/cl-fuseki
+Common Lisp library for connecting to SPARQL endpoints.
+- License: MIT License ..."))
 
-Common Lisp SPARQL client code - see book ...")
- ...)
 (("The Best Hikes in Sedona, Arizona | A Hiking Travel Guide"
   "https://zannavandijk.co.uk/the-best-hikes-in-sedona/"
-  "This is a relatively easy hike with non-stop views of iconic Sedona rock formations. ...")
- ...)
+  "This is a relatively easy hike with non-stop views of iconic Sedona
+rock formations. The trail starts as a loop around the butte and then
+you have the option of adding on the climb up Bell Rock which I highly
+recommend, the views are incredible!")
+ ("10 Best Hikes in Sedona AZ to do For First Time Visitors"
+  "https://thenatureseeker.com/best-hikes-in-sedona-az-the-top-10-trails-to-check-out/"
+  "This is one of my favorite hiking trails in Sedona. You'll be
+walking on a relatively easy trail with slight inclines and declines
+for 2 miles before venturing off into a more remote hike that takes
+you to the famous Soldiers Pass Caves.")
+ ("The Best Hikes in Sedona, Arizona (Plus Tips on Parking & More)"
+  "https://www.lostwithlydia.com/destinations/usa/az/Best-Day-Hikes-in-Sedona/"
+  "Another option is to take the Baldwin Trail or Templeton Trail and
+connect over to the <strong>Cathedral Rock Trail</strong>. The Baldwin
+Trailhead is a 20 minute drive from the <strong>Cathedral Rock
+Trail</strong>head and has about 40 parking spots."))
 ```
 
 ## Using It
@@ -284,25 +352,34 @@ DBpedia and Wikidata are enormous public knowledge graphs, and both answer SPARQ
 
 (defun sparql (endpoint query)
   "Returns a list of rows, each row an alist of (variable . value)."
-  (map 'list
-       (lambda (row)
-         (loop for var being the hash-keys of row using (hash-value b)
-               collect (cons var (gethash "value" b))))
-       (gethash "bindings"
-                (gethash "results"
-                         (com.inuoe.jzon:parse
-                          (uiop:run-program
-                           (list "curl" "-s" "-G" endpoint
-                                 "-H" "Accept: application/sparql-results+json"
-                                 "-A" "sparql.lisp/1.0 (Common Lisp example)"
-                                 "--data-urlencode" (concatenate 'string "query=" query))
-                           :output :string))))))
+  (let* ((cmd (list "curl" "-s" "-G" endpoint
+                    "-H" "Accept: application/sparql-results+json"
+                    "-A" "sparql.lisp/1.0 (Common Lisp example)"
+                    "--data-urlencode"
+                    (concatenate 'string "query=" query)))
+         (raw (uiop:run-program cmd :output :string))
+         (json (com.inuoe.jzon:parse raw))
+         (bindings (gethash "bindings" (gethash "results" json))))
+    (map 'list
+         (lambda (row)
+           (loop for var being the hash-keys of row
+                 using (hash-value b)
+                 collect (cons var (gethash "value" b))))
+         bindings)))
 
-(defun dbpedia (query) (sparql "https://dbpedia.org/sparql" query))
-(defun wikidata (query) (sparql "https://query.wikidata.org/sparql" query))
+(defun dbpedia (query)
+  (sparql "https://dbpedia.org/sparql" query))
 
-(print (dbpedia "SELECT ?birth WHERE { dbr:Bill_Gates dbo:birthDate ?birth }"))
-(print (wikidata "SELECT ?label WHERE { wd:Q5284 rdfs:label ?label FILTER(LANG(?label) = \"en\") }"))
+(defun wikidata (query)
+  (sparql "https://query.wikidata.org/sparql" query))
+
+(print (dbpedia
+        "SELECT ?birth WHERE { dbr:Bill_Gates dbo:birthDate ?birth }"))
+(print (wikidata
+        (concatenate
+         'string
+         "SELECT ?label WHERE { "
+         "wd:Q5284 rdfs:label ?label FILTER(LANG(?label) = \"en\") }")))
 ```
 
 ## How It Works
@@ -320,7 +397,7 @@ $ sbcl --script sparql.lisp
 The first query asks DBpedia for Bill Gates's birth date and prints a one-row, one-column result:
 
 ```text
-(("birth" . "1955-10-28"))
+((("birth" . "1955-10-28")))
 ```
 
 The second asks Wikidata for the English label of the entity `wd:Q5284` (Bill Gates). Actual output:
@@ -347,11 +424,14 @@ Some pages barely exist until JavaScript runs. Lightpanda is a lightweight headl
 
 (defun lightpanda (url &optional (dump "html"))
   "DUMP is one of: html, markdown, semantic_tree, semantic_tree_text."
-  (uiop:run-program (list "lightpanda" "fetch" "--dump" dump "--log_level" "warn" url)
-                    :output :string))
+  (uiop:run-program
+   (list "lightpanda" "fetch" "--dump" dump
+         "--log_level" "warn" url)
+   :output :string))
 
 (defun links (html)
-  (loop for i = (search "href=\"" html) then (search "href=\"" html :start2 end)
+  (loop for i = (search "href=\"" html)
+        then (search "href=\"" html :start2 end)
         for end = (and i (position #\" html :start (+ i 6)))
         while end collect (subseq html (+ i 6) end)))
 
@@ -379,15 +459,46 @@ The first `print` shows the home page rendered as a Markdown string (headings, l
 - [Systems Thinking](https://markwatson.com/#systems)
 - [Books](https://markwatson.com/#books)
 - [Connect](https://markwatson.com/#connect)
-..."
+- [Free Mentoring](https://markwatson.com/#mentoring)
+- [Flagstaff Arizona](https://markwatson.com/flagstaff.html)
+- [Blogspot](https://mark-watson.blogspot.com/)
+- [Substack](https://marklwatson.substack.com/)
+- [GitHub](https://github.com/mark-watson)
+- [Leanpub](https://leanpub.com/u/markwatson)
+
+# Mark Watson
+
+****Systems Thinker & Generalist AI Expert****
+
+Synthesizing complex technologies across 40\\+ years of computing.
+I approach artificial intelligence through a systems\\-thinking lens
+by bridging modern LLMs, neural networks, knowledge graphs, and
+symbolic reasoning with large\\-scale distributed architectures.
+
+Self\\-funded open source researcher and author, with engineering
+and advisory experience for organizations including **Google**,
+**Mind AI**, **Capital One**, **Disney**, **SAIC/Leidos**, **DARPA**,
+**Babylist**, **Olive AI**, and **CompassLabs**.
+...
+"
 ```
 
 The second prints a list of the page's href strings — actual output, abridged:
 
 ```text
-("/index.css" "#" "#systems" "#books" "#connect" "#mentoring" "/flagstaff.html"
- "https://mark-watson.blogspot.com/" "https://marklwatson.substack.com"
- "https://github.com/mark-watson" "https://leanpub.com/u/markwatson" ...)
+("/index.css" "#" "#systems" "#books" "#connect" "#mentoring"
+ "/flagstaff.html" "https://mark-watson.blogspot.com/"
+ "https://marklwatson.substack.com" "https://github.com/mark-watson"
+ "https://leanpub.com/u/markwatson" "#systems" "#books" "#connect"
+ "https://leanpub.com/pythonai/read" "https://leanpub.com/pythonai"
+ "https://leanpub.com/lovinglisp/read" "https://leanpub.com/lovinglisp"
+ "https://leanpub.com/clojureai/read" "https://leanpub.com/clojureai"
+ "https://leanpub.com/haskell-cookbook/read"
+ "https://leanpub.com/haskell-cookbook/" "https://leanpub.com/javaai/read"
+ "https://leanpub.com/javaai" "https://leanpub.com/hy-lisp-python/read"
+ "https://leanpub.com/hy-lisp-python"
+ ...
+ "https://leanpub.com/u/markwatson" "/flagstaff.html" "/privacy.html")
 ```
 
 ## Using It
@@ -408,30 +519,43 @@ When a page is plain HTML, you do not need a browser at all: fetch with `curl`, 
 (ql:quickload '(:plump :clss :cl-ppcre) :silent t)
 
 (defun fetch (url)
-  (plump:parse (uiop:run-program (list "curl" "-sL" "-A" "Mozilla/5.0" url) :output :string)))
+  (plump:parse
+   (uiop:run-program
+    (list "curl" "-sL" "-A" "Mozilla/5.0" url) :output :string)))
 
 (defun text (node)
-  "Text of NODE, skipping comments and boilerplate tags; block tags become newlines."
-  (let ((tag (and (plump:element-p node) (string-downcase (plump:tag-name node)))))
-    (cond ((plump:text-node-p node) (cl-ppcre:regex-replace-all "\\s+" (plump:text node) " "))
-          ((member tag '("script" "style" "head" "nav" "header" "footer" "noscript" "iframe")
-                   :test #'equal) "")
+  "Text of NODE, skipping boilerplate; block tags become newlines."
+  (let ((tag (and (plump:element-p node)
+                  (string-downcase (plump:tag-name node)))))
+    (cond ((plump:text-node-p node)
+           (cl-ppcre:regex-replace-all "\\s+" (plump:text node) " "))
+          ((member tag
+                   '("script" "style" "head" "nav" "header"
+                     "footer" "noscript" "iframe")
+                   :test #'equal)
+           "")
           ((plump:nesting-node-p node)
-           (let ((s (format nil "~{~a~}" (map 'list #'text (plump:children node)))))
-             (if (member tag '("p" "div" "li" "br" "tr" "h1" "h2" "h3" "h4" "h5" "h6"
-                               "section" "article" "ul" "ol" "pre" "blockquote")
-                         :test #'equal)
+           (let ((s (format nil "~{~a~}"
+                            (map 'list #'text (plump:children node)))))
+             (if (member tag '("p" "div" "li" "br" "tr" "h1" "h2"
+                               "h3" "h4" "h5" "h6" "section"
+                               "article" "ul" "ol" "pre" "blockquote")
+                          :test #'equal)
                  (format nil "~%~a~%" s)
                  s)))
           (t ""))))
 
 (defun clean (s)
-  (string-trim '(#\Space #\Newline)
-               (cl-ppcre:regex-replace-all "\\n{3,}" (cl-ppcre:regex-replace-all "(?m)^ +| +$" s "")
-                                           (format nil "~%~%"))))
+  (string-trim
+   '(#\Space #\Newline)
+   (cl-ppcre:regex-replace-all
+    "\\n{3,}"
+    (cl-ppcre:regex-replace-all "(?m)^ +| +$" s "")
+    (format nil "~%~%"))))
 
 (defun headers (url)
-  (map 'list (lambda (h) (clean (text h))) (clss:select "h1,h2,h3,h4,h5,h6" (fetch url))))
+  (map 'list (lambda (h) (clean (text h)))
+       (clss:select "h1,h2,h3,h4,h5,h6" (fetch url))))
 
 (defun page-text (url) (clean (text (fetch url))))
 
@@ -453,18 +577,39 @@ When a page is plain HTML, you do not need a browser at all: fetch with `curl`, 
 $ sbcl --script webscraping.lisp
 ```
 
-Actual output, abridged (the full page text runs to several kilobytes):
+Actual output (showing the full `headers` list and the opening paragraphs of `page-text`):
 
 ```text
 ("Mark Watson" "Systems Thinking & Generalist AI"
  "Read My Books — Many for Free" "Connect & Interests"
- "Free Mentoring for Technical Projects" ...)
+ "Free Mentoring for Technical Projects" "Holistic Systems Architecture"
+ "Neuro-Symbolic Integration" "Multi-Paradigm Polyglot"
+ "40+ Years of Long-Horizon Vision" "Loving Lisp Is Being Rewritten"
+ "Writings & Blogs" "Open Source" "Consulting" "Interests & Music"
+ "How It Works" "Additional eBooks on Leanpub"
+ "Traditional Publications (Springer-Verlag, McGraw-Hill, Morgan Kaufmann)"
+ "Free Semantic Web PDFs & Material")
 
 Mark Watson
 
 Systems Thinker & Generalist AI Expert
 
-Synthesizing complex technologies across 40+ years of computing. ...
+Synthesizing complex technologies across 40+ years of computing. I
+approach artificial intelligence through a systems-thinking lens by
+bridging modern LLMs, neural networks, knowledge graphs, and symbolic
+reasoning with large-scale distributed architectures.
+
+Self-funded open source researcher and author, with engineering and
+advisory experience for organizations including Google, Mind AI,
+Capital One, Disney, SAIC/Leidos, DARPA, Babylist, Olive AI, and
+CompassLabs.
+
+40+ Years in AI
+
+20+ Books Published
+
+55 US Patents
+...
 ```
 
 ## Using It
@@ -480,60 +625,102 @@ macOS exposes Mail, Calendar, Reminders, Messages, and Safari to AppleScript —
 ## The Code
 
 ```lisp
-;;;; osascript.lisp -- tiny macOS automation via osascript.   (load "osascript")
-;;;; Needs Automation permission for your terminal (System Settings > Privacy & Security);
-;;;; READ-RECENT-IMESSAGES also needs Full Disk Access, SAFARI-LOGIN needs
-;;;; Safari > Develop > Allow JavaScript from Apple Events.  Keep credentials out of this file.
+;;;; osascript.lisp -- tiny macOS automation via osascript.
+;;;; Needs Automation permission for your terminal:
+;;;; System Settings > Privacy & Security.
+;;;; READ-RECENT-IMESSAGES also needs Full Disk Access; SAFARI-LOGIN
+;;;; needs Safari > Develop > Allow JavaScript from Apple Events.
+;;;; Keep credentials out of this file.
 (require :asdf)
 
-(defun osascript (script)               ; returns trimmed stdout, or signals osascript's own error
+(defun osascript (script)
   (multiple-value-bind (out err code)
       (uiop:run-program (list "osascript" "-e" script)
-                        :output :string :error-output :string :ignore-error-status t)
-    (if (zerop code) (string-trim '(#\Space #\Newline) out) (error "osascript: ~a" err))))
+                        :output :string
+                        :error-output :string
+                        :ignore-error-status t)
+    (if (zerop code)
+        (string-trim '(#\Space #\Newline) out)
+        (error "osascript: ~a" err))))
 
-;;; ~S quotes Lisp strings so they are valid AppleScript (and JavaScript) string literals.
+;;; ~S quotes Lisp strings as valid AppleScript and JavaScript literals.
 (defun mail-unread-count ()
-  (parse-integer (osascript "tell application \"Mail\" to return unread count of inbox")))
+  (parse-integer
+   (osascript
+    "tell application \"Mail\" to return unread count of inbox")))
 
 (defun get-todays-events ()
-  (remove "" (uiop:split-string (osascript "tell application \"Calendar\"
+  (remove ""
+          (uiop:split-string
+           (osascript "tell application \"Calendar\"
   set t0 to current date
   set time of t0 to 0
   set out to {}
   repeat with c in calendars
-    set out to out & (summary of every event of c whose start date >= t0 and start date < t0 + days)
+    set out to out & (summary of every event of c ¬
+      whose start date >= t0 and start date < t0 + days)
   end repeat
   set AppleScript's text item delimiters to \"|\"
   return out as string
 end tell") :separator "|") :test #'string=))
 
 (defun send-imessage (phone message)
-  (osascript (format nil "tell application \"Messages\" to send ~S to buddy ~S of (1st service whose service type = iMessage)"
-                     message phone)))
+  (osascript
+   (format nil
+    (concatenate
+     'string
+     "tell application \"Messages\" to send ~S to buddy ~S "
+     "of (1st service whose service type = iMessage)")
+    message phone)))
 
 (defun add-reminder (name)
-  (osascript (format nil "tell application \"Reminders\" to return id of (make new reminder with properties {name:~S})" name)))
+  (osascript
+   (format nil
+    (concatenate
+     'string
+     "tell application \"Reminders\" to return id of "
+     "(make new reminder with properties {name:~S})")
+    name)))
 
-(defun read-recent-imessages (&optional (limit 5))   ; JSON string from chat.db
+(defun read-recent-imessages (&optional (limit 5))
   (check-type limit (integer 1))
-  (uiop:run-program (list "sqlite3" "-json" (namestring (merge-pathnames "Library/Messages/chat.db" (user-homedir-pathname)))
-                          (format nil "SELECT m.is_from_me, h.id AS sender, m.text FROM message m LEFT JOIN handle h ON m.handle_id = h.ROWID WHERE m.text IS NOT NULL ORDER BY m.date DESC LIMIT ~d;" limit))
-                    :output :string))
+  (let ((db (namestring
+             (merge-pathnames "Library/Messages/chat.db"
+                              (user-homedir-pathname))))
+        (sql (format nil
+              (concatenate
+               'string
+               "SELECT m.is_from_me, h.id AS sender, m.text "
+               "FROM message m LEFT JOIN handle h ON "
+               "m.handle_id = h.ROWID WHERE m.text IS NOT NULL "
+               "ORDER BY m.date DESC LIMIT ~d;")
+              limit)))
+    (uiop:run-program (list "sqlite3" "-json" db sql)
+                      :output :string)))
 
-(defun safari-login (url user password &key (user-id "username") (password-id "password") (form-id "login-form") (timeout 30))
-  (osascript (format nil "tell application \"Safari\"
+(defun safari-login (url user password
+                     &key (user-id "username")
+                          (password-id "password")
+                          (form-id "login-form")
+                          (timeout 30))
+  (let ((js (format nil
+             (concatenate
+              'string
+              "document.getElementById(~S).value = ~S; "
+              "document.getElementById(~S).value = ~S; "
+              "document.getElementById(~S).submit();")
+             user-id user password-id password form-id)))
+    (osascript (format nil "tell application \"Safari\"
   set d to make new document with properties {URL:~S}
   repeat ~d times
     delay 0.5
-    if (do JavaScript \"document.readyState\" in d) is \"complete\" then return (do JavaScript ~S in d)
+    if (do JavaScript \"document.readyState\" in d) is \"complete\" then
+      return (do JavaScript ~S in d)
+    end if
   end repeat
 end tell
 error \"Safari page did not load within ~d seconds\""
-                     url (* 2 timeout)
-                     (format nil "document.getElementById(~S).value = ~S; document.getElementById(~S).value = ~S; document.getElementById(~S).submit();"
-                             user-id user password-id password form-id)
-                     timeout)))
+                       url (* 2 timeout) js timeout))))
 
 ;;; Examples
 ;; (osascript "return 1 + 10")
@@ -542,7 +729,9 @@ error \"Safari page did not load within ~d seconds\""
 ;; (add-reminder "Buy milk")
 ;; (send-imessage "+15551234567" "Hello from Lisp")
 ;; (read-recent-imessages 3)
-;; (safari-login "https://leanpub.com/author/royalties/summary" (uiop:getenv "LEANPUB_USER") (uiop:getenv "LEANPUB_PASSWORD"))
+;; (safari-login "https://leanpub.com/author/royalties/summary"
+;;               (uiop:getenv "LEANPUB_USER")
+;;               (uiop:getenv "LEANPUB_PASSWORD"))
 ```
 
 ## How It Works
@@ -586,7 +775,7 @@ The program works with whole distributions at once: a distribution is an alist o
 ## The Code
 
 ```lisp
-;; sbcl --script bayes.lisp   (Bayesian inference & medical base-rate fallacy)
+;; sbcl --script bayes.lisp (Bayesian inference)
 
 (defun bayes-normalize (dist)
   (let ((sum (reduce #'+ dist :key #'cdr)))
@@ -595,7 +784,9 @@ The program works with whole distributions at once: a distribution is an alist o
 (defun bayes-update (dist evidence likelihood-fn)
   (bayes-normalize
    (mapcar (lambda (p)
-             (cons (car p) (* (cdr p) (funcall likelihood-fn (car p) evidence))))
+             (cons (car p)
+                   (* (cdr p)
+                      (funcall likelihood-fn (car p) evidence))))
            dist)))
 
 (defun map-hypothesis (dist)
@@ -607,14 +798,18 @@ The program works with whole distributions at once: a distribution is an alist o
        (likelihood (lambda (hyp test-result)
                      (case hyp
                        (has-disease (if (eq test-result '+) 0.95 0.05))
-                       (healthy     (if (eq test-result '+) 0.05 0.95)))))
+                       (healthy
+                        (if (eq test-result '+) 0.05 0.95)))))
        (post1 (bayes-update prior '+ likelihood))
        (post2 (bayes-update post1 '+ likelihood)))
-  (format t "Prior:         ~{~a: ~,4f~^, ~}~%" (mapcan (lambda (p) (list (car p) (cdr p))) prior))
+  (format t "Prior:         ~{~a: ~,4f~^, ~}~%"
+          (mapcan (lambda (p) (list (car p) (cdr p))) prior))
   (format t "After 1st (+): ~{~a: ~,4f~^, ~}  -> MAP: ~a~%"
-          (mapcan (lambda (p) (list (car p) (cdr p))) post1) (car (map-hypothesis post1)))
+          (mapcan (lambda (p) (list (car p) (cdr p))) post1)
+          (car (map-hypothesis post1)))
   (format t "After 2nd (+): ~{~a: ~,4f~^, ~}  -> MAP: ~a~%"
-          (mapcan (lambda (p) (list (car p) (cdr p))) post2) (car (map-hypothesis post2))))
+          (mapcan (lambda (p) (list (car p) (cdr p))) post2)
+          (car (map-hypothesis post2))))
 ```
 
 ## How It Works
@@ -694,27 +889,44 @@ with the standard defaults `k_1 = 1.5`$ and `b = 0.75`$.
          (avgdl (/ (reduce #'+ lens) (float (max 1 n))))
          (q-terms (remove-duplicates (tokenize query) :test #'string=)))
     (labels ((idf (term)
-               (let ((df (count-if (lambda (d) (member term d :test #'string=)) docs)))
+               (let ((df (count-if (lambda (d)
+                                     (member term d :test #'string=))
+                                   docs)))
                  (log (+ 1.0 (/ (+ (- n df) 0.5) (+ df 0.5)))))))
       (sort (loop for doc in docs
                   for raw in corpus
                   for len in lens
-                  for score = (loop for term in q-terms
-                                    for tf = (count term doc :test #'string=)
-                                    when (> tf 0)
-                                    sum (* (idf term)
-                                           (/ (* tf (+ k1 1.0))
-                                              (+ tf (* k1 (+ (- 1.0 b) (* b (/ len avgdl))))))))
+                  for score =
+                  (loop for term in q-terms
+                        for tf = (count term doc :test #'string=)
+                        when (> tf 0)
+                        sum (* (idf term)
+                               (/ (* tf (+ k1 1.0))
+                                  (+ tf (* k1
+                                           (+ (- 1.0 b)
+                                              (* b (/ len avgdl))))))))
                   when (> score 0.0)
                   collect (list score raw))
             #'> :key #'car))))
 
 ;; Demo: Document corpus search
-(let ((corpus '("Common Lisp is a general-purpose programming language with powerful macros."
-                "Python is an interpreted language known for data science and machine learning."
-                "Deep learning models require automatic differentiation and gradient optimization."
-                "Macros in Common Lisp enable syntactic metaprogramming and DSL design."
-                "Okapi BM25 is an information retrieval ranking function used in search engines.")))
+(let ((corpus
+        (list
+         (concatenate 'string
+          "Common Lisp is a general-purpose programming language "
+          "with powerful macros.")
+         (concatenate 'string
+          "Python is an interpreted language known for data science "
+          "and machine learning.")
+         (concatenate 'string
+          "Deep learning models require automatic differentiation "
+          "and gradient optimization.")
+         (concatenate 'string
+          "Macros in Common Lisp enable syntactic metaprogramming "
+          "and DSL design.")
+         (concatenate 'string
+          "Okapi BM25 is an information retrieval ranking function "
+          "used in search engines."))))
   (format t "Corpus size: ~a documents~%" (length corpus))
   (dolist (query '("Common Lisp macros" "search ranking" "learning"))
     (format t "~%Query: ~s~%" query)
@@ -781,7 +993,7 @@ so the state slides downhill into a stored pattern.
 ## The Code
 
 ```lisp
-;; sbcl --script hopfield.lisp   (Hopfield associative memory neural network)
+;; sbcl --script hopfield.lisp (Hopfield associative neural network)
 
 (defun hopfield-train (patterns size)
   (let ((w (make-array (list size size) :initial-element 0)))
@@ -796,13 +1008,17 @@ so the state slides downhill into a stored pattern.
         (n (length input)))
     (dotimes (_ steps state)
       (dotimes (i n)
-        (let ((sum (loop for j below n sum (* (aref w i j) (nth j state)))))
+        (let ((sum (loop for j below n
+                         sum (* (aref w i j) (nth j state)))))
           (setf (nth i state) (if (>= sum 0) 1 -1)))))))
 
 (defun hopfield-energy (w state)
-  (- (* 0.5 (loop for i below (length state)
-                  sum (loop for j below (length state)
-                            sum (* (aref w i j) (nth i state) (nth j state)))))))
+  (- (* 0.5
+        (loop for i below (length state)
+              sum (loop for j below (length state)
+                        sum (* (aref w i j)
+                               (nth i state)
+                               (nth j state)))))))
 
 (defun show-pattern (pat &optional (width 4))
   (loop for i from 0 below (length pat)
@@ -824,11 +1040,14 @@ so the state slides downhill into a stored pattern.
                 (dolist (idx '(0 5 10) cp)
                   (setf (nth idx cp) (- (nth idx cp))))))
        (recalled (hopfield-recall w noisy)))
-  (format t "Original Pattern 'X' (Energy: ~,1f):~%" (hopfield-energy w pattern-x))
+  (format t "Original Pattern 'X' (Energy: ~,1f):~%"
+          (hopfield-energy w pattern-x))
   (show-pattern pattern-x)
-  (format t "~%Noisy Pattern with 3 bit-flips (Energy: ~,1f):~%" (hopfield-energy w noisy))
+  (format t "~%Noisy Pattern with 3 bit-flips (Energy: ~,1f):~%"
+          (hopfield-energy w noisy))
   (show-pattern noisy)
-  (format t "~%Recalled Associative Memory (Energy: ~,1f):~%" (hopfield-energy w recalled))
+  (format t "~%Recalled Associative Memory (Energy: ~,1f):~%"
+          (hopfield-energy w recalled))
   (show-pattern recalled)
   (format t "~%Recovered perfectly? ~a~%" (equal recalled pattern-x)))
 ```
@@ -885,7 +1104,7 @@ An RDF-style triple store with a pattern-matching query engine in under thirty l
 ## The Code
 
 ```lisp
-;; sbcl --script triple-store.lisp   (in-memory RDF triple store & query engine)
+;; sbcl --script triple-store.lisp (in-memory RDF triple store)
 
 (defvar *store* nil)
 
@@ -907,18 +1126,27 @@ An RDF-style triple store with a pattern-matching query engine in under thirty l
 
 (defun query-triples (patterns &optional (store *store*) (envs '(())))
   (if (null patterns) envs
-      (query-triples (cdr patterns) store
-                     (loop for env in envs
-                           append (loop for tr in store
-                                        for next-env = (match-triple (car patterns) tr (copy-alist env))
-                                        unless (eq next-env :fail) collect next-env)))))
+      (query-triples
+       (cdr patterns) store
+       (loop for env in envs
+             append
+             (loop for tr in store
+                   for next-env = (match-triple (car patterns)
+                                                tr
+                                                (copy-alist env))
+                   unless (eq next-env :fail) collect next-env)))))
 
 ;; Demo: Knowledge graph of thinkers, occupations, and cities
-(dolist (tr '((socrates :is-a :philosopher) (socrates :lives-in :athens)
-              (plato    :is-a :philosopher) (plato    :lives-in :athens)
-              (descartes :is-a :philosopher) (descartes :lives-in :paris)
-              (monet    :is-a :painter)     (monet    :lives-in :paris)
-              (voltaire :is-a :writer)      (voltaire :lives-in :paris)))
+(dolist (tr '((socrates :is-a :philosopher)
+              (socrates :lives-in :athens)
+              (plato    :is-a :philosopher)
+              (plato    :lives-in :athens)
+              (descartes :is-a :philosopher)
+              (descartes :lives-in :paris)
+              (monet    :is-a :painter)
+              (monet    :lives-in :paris)
+              (voltaire :is-a :writer)
+              (voltaire :lives-in :paris)))
   (apply #'add-triple tr))
 
 (format t "Knowledge base triples count: ~a~%" (length *store*))
@@ -927,13 +1155,18 @@ An RDF-style triple store with a pattern-matching query engine in under thirty l
 (dolist (b (query-triples '((?who :is-a :philosopher))))
   (format t "  who: ~a~%" (cdr (assoc '?who b))))
 
-(format t "~%Query 2: Who lives in Paris AND is a philosopher? (relational join)~%")
-(dolist (b (query-triples '((?who :lives-in :paris) (?who :is-a :philosopher))))
+(format t "~%Query 2: Who lives in Paris AND is a philosopher? ~
+           (relational join)~%")
+(dolist (b (query-triples '((?who :lives-in :paris)
+                            (?who :is-a :philosopher))))
   (format t "  who: ~a~%" (cdr (assoc '?who b))))
 
 (format t "~%Query 3: All people in Paris and their occupations:~%")
-(dolist (b (query-triples '((?person :lives-in :paris) (?person :is-a ?job))))
-  (format t "  ~a is a ~a in Paris~%" (cdr (assoc '?person b)) (cdr (assoc '?job b))))
+(dolist (b (query-triples '((?person :lives-in :paris)
+                            (?person :is-a ?job))))
+  (format t "  ~a is a ~a in Paris~%"
+          (cdr (assoc '?person b))
+          (cdr (assoc '?job b))))
 ```
 
 ## How It Works
@@ -989,7 +1222,7 @@ Cosine similarity measures the angle between two vectors, ignoring their magnitu
 ## The Code
 
 ```lisp
-;; sbcl --script vector-store.lisp   (dense vector store & cosine similarity search)
+;; sbcl --script vector-store.lisp (in-memory dense vector store)
 
 (defun v-dot (a b)
   (loop for x across a for y across b sum (* x y)))
@@ -1009,11 +1242,13 @@ Cosine similarity measures the angle between two vectors, ignoring their magnitu
 
 (defun store-search (store query-vec &optional (k 3))
   (let ((qv (coerce query-vec 'vector)))
-    (subseq (sort (loop for id being the hash-keys of store using (hash-value item)
-                        for score = (v-cosine qv (second item))
-                        collect (list score id (first item)))
-                  #'> :key #'car)
-            0 (min k (hash-table-count store)))))
+    (subseq
+     (sort (loop for id being the hash-keys of store
+                   using (hash-value item)
+                 for score = (v-cosine qv (second item))
+                 collect (list score id (first item)))
+           #'> :key #'car)
+     0 (min k (hash-table-count store)))))
 
 ;; Demo: Semantic vector search in 4D concept space
 (let ((store (make-vector-store)))
@@ -1027,11 +1262,13 @@ Cosine similarity measures the angle between two vectors, ignoring their magnitu
 
   (format t "~%Query 1: Royal female concept #(0.85 0.85 0.05 0.10)~%")
   (dolist (hit (store-search store #(0.85 0.85 0.05 0.10) 3))
-    (format t "  [sim: ~5,3f] (~a) ~s~%" (first hit) (second hit) (third hit)))
+    (format t "  [sim: ~5,3f] (~a) ~s~%"
+            (first hit) (second hit) (third hit)))
 
   (format t "~%Query 2: Sweet fruit concept #(0.05 0.10 0.85 0.90)~%")
   (dolist (hit (store-search store #(0.05 0.10 0.85 0.90) 3))
-    (format t "  [sim: ~5,3f] (~a) ~s~%" (first hit) (second hit) (third hit))))
+    (format t "  [sim: ~5,3f] (~a) ~s~%"
+            (first hit) (second hit) (third hit))))
 ```
 
 ## How It Works
@@ -1084,11 +1321,12 @@ where `\mathrm{freq}(w)`$ counts occurrences of word `w`$ across the whole docum
 ## The Code
 
 ```lisp
-;; sbcl --script summarizer.lisp   (extractive text summarization via word frequencies)
+;; sbcl --script summarizer.lisp (extractive text summarization)
 
 (defparameter *stop-words*
-  '("the" "a" "an" "in" "on" "at" "to" "for" "of" "and" "or" "is" "are" "was" "were"
-    "it" "that" "this" "with" "as" "by" "from" "be" "has" "have" "its"))
+  '("the" "a" "an" "in" "on" "at" "to" "for" "of" "and" "or" "is"
+    "are" "was" "were" "it" "that" "this" "with" "as" "by" "from"
+    "be" "has" "have" "its"))
 
 (defun words (text)
   (loop with len = (length text) and acc = nil and res = nil
@@ -1107,10 +1345,13 @@ where `\mathrm{freq}(w)`$ counts occurrences of word `w`$ across the whole docum
         for i from 0 below len
         for ch = (char text i)
         when (member ch '(#\. #\! #\?))
-          do (let ((s (string-trim " \t\n\r" (subseq text start (1+ i)))))
+          do (let ((s (string-trim '(#\Space #\Tab #\Newline #\Return)
+                                   (subseq text start (1+ i)))))
                (when (> (length s) 0) (push s res))
                (setf start (1+ i)))
-        finally (let ((s (string-trim " \t\n\r" (subseq text start len))))
+        finally (let ((s (string-trim
+                          '(#\Space #\Tab #\Newline #\Return)
+                          (subseq text start len))))
                   (when (> (length s) 0) (push s res)))
                 (return (nreverse res))))
 
@@ -1121,21 +1362,38 @@ where `\mathrm{freq}(w)`$ counts occurrences of word `w`$ across the whole docum
       (dolist (w (words s))
         (unless (member w *stop-words* :test #'string=)
           (incf (gethash w freqs 0)))))
-    (let ((scored (loop for s in sentences for idx from 0
-                        for ws = (words s)
-                        for score = (if (null ws) 0.0
-                                        (/ (loop for w in ws sum (gethash w freqs 0))
-                                           (float (length ws))))
-                        collect (list score idx s))))
+    (let ((scored
+            (loop for s in sentences for idx from 0
+                  for ws = (words s)
+                  for score = (if (null ws) 0.0
+                                  (/ (loop for w in ws
+                                           sum (gethash w freqs 0))
+                                     (float (length ws))))
+                  collect (list score idx s))))
       (mapcar #'third
               (sort (subseq (sort scored #'> :key #'first)
                             0 (min n (length scored)))
                     #'< :key #'second)))))
 
 ;; Demo: Multi-sentence paragraph extraction
-(let* ((text "Common Lisp is an expressive, multi-paradigm programming language with a rich history in artificial intelligence. It features dynamic typing, an advanced object system, and syntactic macros that allow programmers to create domain-specific languages. Extractive summarization algorithms score sentences based on significant word frequencies across a document. In this example, we calculate term frequencies and rank sentences to produce a concise summary. Common Lisp continues to empower developers to build complex symbolic and numerical systems with high productivity.")
+(let* ((text
+        (concatenate
+         'string
+         "Common Lisp is an expressive, multi-paradigm programming "
+         "language with a rich history in artificial intelligence. "
+         "It features dynamic typing, an advanced object system, "
+         "and syntactic macros that allow programmers to create "
+         "domain-specific languages. "
+         "Extractive summarization algorithms score sentences based "
+         "on significant word frequencies across a document. "
+         "In this example, we calculate term frequencies and rank "
+         "sentences to produce a concise summary. "
+         "Common Lisp continues to empower developers to build "
+         "complex symbolic and numerical systems with high "
+         "productivity."))
        (summary (summarize text 2)))
-  (format t "Original text: ~a sentences.~%~%" (length (split-sentences text)))
+  (format t "Original text: ~a sentences.~%~%"
+          (length (split-sentences text)))
   (format t "Extractive 2-Sentence Summary:~%")
   (dolist (s summary)
     (format t "  • ~a~%" s)))
@@ -1190,9 +1448,10 @@ and definite integrals evaluate the antiderivative at the endpoints:
 ## The Code
 
 ```lisp
-;;;; symbolic-math.lisp — tiny symbolic polynomial calculus.   sbcl --script symbolic-math.lisp
-;;;; A polynomial is an alist ((exponent . coefficient) ...): descending exponents,
-;;;; like terms combined, zeros dropped.  3x^2 - x + 5  =  ((2 . 3) (1 . -1) (0 . 5))
+;;;; symbolic-math.lisp: symbolic polynomial calculus.
+;;;; Polynomials are alists ((exponent . coefficient) ...):
+;;;; descending exponents, like terms combined, zeros dropped.
+;;;; 3x^2 - x + 5 = ((2 . 3) (1 . -1) (0 . 5))
 
 (defun normalize (terms)
   (let ((h (make-hash-table)))
@@ -1202,41 +1461,58 @@ and definite integrals evaluate the antiderivative at the endpoints:
           #'> :key #'car)))
 
 (defun poly (&rest coefs)               ; (poly 3 -1 5) => 3x^2 - x + 5
-  (normalize (loop for c in (reverse coefs) for e from 0 collect (cons e c))))
+  (normalize
+   (loop for c in (reverse coefs) for e from 0 collect (cons e c))))
 
 ;;; Arithmetic & evaluation
 (defun p+ (&rest ps) (normalize (apply #'append ps)))
-(defun scale (p k)   (normalize (loop for (e . c) in p collect (cons e (* k c)))))
+(defun scale (p k)
+  (normalize (loop for (e . c) in p collect (cons e (* k c)))))
 (defun p- (p q)      (p+ p (scale q -1)))
 (defun degree (p)    (if p (caar p) -1))
 (defun evaluate (p x) (loop for (e . c) in p sum (* c (expt x e))))
 
-;;; Calculus: power rule, reverse power rule (no +C), fundamental theorem
+;;; Calculus: power rule, reverse power rule, fundamental theorem
 (defun deriv (p &optional (n 1))
   (if (zerop n) p
-      (deriv (loop for (e . c) in p unless (zerop e) collect (cons (1- e) (* e c))) (1- n))))
+      (deriv
+       (loop for (e . c) in p
+             unless (zerop e)
+             collect (cons (1- e) (* e c)))
+       (1- n))))
 
 (defun integ (p &optional (n 1))
   (if (zerop n) p
-      (integ (loop for (e . c) in p collect (cons (1+ e) (/ c (1+ e)))) (1- n))))
+      (integ
+       (loop for (e . c) in p
+             collect (cons (1+ e) (/ c (1+ e))))
+       (1- n))))
 
-(defun bound (b) (case b (:pi pi) (:e (exp 1d0)) (t (float b 1d0))))  ; bounds: numbers, :pi, :e
+(defun bound (b)
+  (case b (:pi pi) (:e (exp 1d0)) (t (float b 1d0))))
 
 (defun definite (p a b)
-  (let ((f (integ p))) (- (evaluate f (bound b)) (evaluate f (bound a)))))
+  (let ((f (integ p)))
+    (- (evaluate f (bound b)) (evaluate f (bound a)))))
 
-(defun critical-point-p (p x &optional (tol 1d-9)) (< (abs (evaluate (deriv p) x)) tol))
+(defun critical-point-p (p x &optional (tol 1d-9))
+  (< (abs (evaluate (deriv p) x)) tol))
 
 ;;; Display
 (defun ->string (p &optional (v 'x))
   (if (null p) "0"
       (format nil "~{~a~^ + ~}"
               (loop for (e . c) in p
-                    collect (format nil "~a~@[~(~a~)~]~@[^~a~]" c (and (> e 0) v) (and (> e 1) e))))))
+                    collect (format nil "~a~@[~(~a~)~]~@[^~a~]"
+                                    c (and (> e 0) v)
+                                    (and (> e 1) e))))))
 
 (defun integral->string (p &optional a b (v 'x))
   (flet ((show (b) (case b (:pi "π") (:e "e") (t b))))
-    (format nil "∫~@[[~{~a~^,~}]~](~a) d~(~a~)" (and a (list (show a) (show b))) (->string p v) v)))
+    (format nil "∫~@[[~{~a~^,~}]~](~a) d~(~a~)"
+            (and a (list (show a) (show b)))
+            (->string p v)
+            v)))
 
 ;;; Examples
 (let ((p (poly 3 -1 5))                 ; 3x^2 - x + 5
@@ -1246,11 +1522,18 @@ and definite integrals evaluate the antiderivative at the endpoints:
   (format t "p - q      : ~a~%" (->string (p- p q)))
   (format t "2p         : ~a~%" (->string (scale p 2)))
   (format t "degree, p(2): ~a, ~a~%" (degree p) (evaluate p 2))
-  (format t "p', p'', p''': ~a | ~a | ~a~%" (->string (deriv p)) (->string (deriv p 2)) (->string (deriv p 3)))
-  (format t "∫p, ∫∫p    : ~a | ~a~%" (->string (integ p)) (->string (integ p 2)))
+  (format t "p', p'', p''': ~a | ~a | ~a~%"
+          (->string (deriv p))
+          (->string (deriv p 2))
+          (->string (deriv p 3)))
+  (format t "∫p, ∫∫p    : ~a | ~a~%"
+          (->string (integ p))
+          (->string (integ p 2)))
   (format t "~a = ~a~%" (integral->string p 0 1) (definite p 0 1))
   (format t "~a = ~,4f~%" (integral->string p 0 :pi) (definite p 0 :pi))
-  (format t "x=1/6 critical? ~a  x=0? ~a~%" (critical-point-p p 1/6) (critical-point-p p 0)))
+  (format t "x=1/6 critical? ~a  x=0? ~a~%"
+          (critical-point-p p 1/6)
+          (critical-point-p p 0)))
 ```
 
 ## How It Works
@@ -1339,16 +1622,17 @@ Each node records its value, its parents, and a closure implementing the *local*
          (out (%val (max 0.0 (val-data a)) (list a) 'relu)))
     (setf (val-backward out)
           (lambda ()
-            (incf (val-grad a) (if (> (val-data out) 0.0) (val-grad out) 0.0))))
+            (incf (val-grad a)
+                  (if (> (val-data out) 0.0) (val-grad out) 0.0))))
     out))
 
 (defun backward (root)
   (let ((topo nil) (visited (make-hash-table :test 'eq)))
     (labels ((build (v)
                (unless (gethash v visited)
-                 (setf (gethash v visited) t)
-                 (dolist (p (val-prev v)) (build p))
-                 (push v topo))))
+                  (setf (gethash v visited) t)
+                  (dolist (p (val-prev v)) (build p))
+                  (push v topo))))
       (build root))
     (setf (val-grad root) 1.0)
     (dolist (v topo)
@@ -1435,99 +1719,160 @@ All sixteen example programs in this book (every file except `load.lisp` itself 
 ## The Code
 
 ```lisp
-;; (load "load.lisp") then (help)   -- loads definitions from every file here,
+;; (load "load.lisp") then (help): loads definitions from every file,
 ;; skipping the example calls at the bottom of each file.
 #-quicklisp (load "~/quicklisp/setup.lisp")
 
-(let ((dir (directory-namestring (or *load-truename* *default-pathname-defaults*))))
+(let ((dir (directory-namestring
+            (or *load-truename* *default-pathname-defaults*))))
   (dolist (f (directory (merge-pathnames "*.lisp" dir)))
     (unless (equal (pathname-name f) "load")
       (with-open-file (s f)
         (let ((*package* (find-package :cl-user)))
           (loop for form = (read s nil s) until (eq form s)
                 when (and (consp form)
-                          (member (car form) '(defun defstruct defvar defparameter
-                                               defpackage in-package require load
-                                               ql:quickload)))
+                          (member (car form)
+                                  '(defun defstruct defvar defparameter
+                                    defpackage in-package require load
+                                    ql:quickload)))
                   do (eval form)))))))
 
 (defparameter *help*
   '(("apple-system-model.lisp")
-    ("(apple-fm \"what is 1 + 10?\")" "on-device Apple model via `fm`")
+    ("(apple-fm \"what is 1 + 10?\")"
+     "on-device Apple model via `fm`")
     ("gemini.lisp")
-    ("(gemini \"hi\" [model])" "Google Gemini (GOOGLE_API_KEY)")
+    ("(gemini \"hi\" [model])"
+     "Google Gemini (GOOGLE_API_KEY)")
     ("ollama.lisp")
-    ("(ollama \"hi\" [model])" "local Ollama model")
+    ("(ollama \"hi\" [model])"
+     "local Ollama model")
     ("sparql.lisp")
-    ("(sparql endpoint \"SELECT ...\")" "SPARQL query -> rows of (var . value)")
-    ("(dbpedia \"SELECT ...\")" "query DBpedia")
-    ("(wikidata \"SELECT ...\")" "query Wikidata")
+    ("(sparql endpoint \"SELECT ...\")"
+     "SPARQL query -> rows of (var . value)")
+    ("(dbpedia \"SELECT ...\")"
+     "query DBpedia")
+    ("(wikidata \"SELECT ...\")"
+     "query Wikidata")
     ("lightpanda.lisp")
-    ("(lightpanda url [\"markdown\"])" "JS-rendered page via Lightpanda")
-    ("(links html)" "href strings in an HTML string")
+    ("(lightpanda url [\"markdown\"])"
+     "JS-rendered page via Lightpanda")
+    ("(links html)"
+     "href strings in an HTML string")
     ("webscraping.lisp")
-    ("(fetch url)" "fetch and parse a page (plump DOM)")
-    ("(text node)" "plain text of a plump node")
-    ("(clean string)" "trim spaces, collapse blank lines")
-    ("(headers url)" "h1-h6 texts of a page")
-    ("(page-text url)" "readable plain text of a page")
+    ("(fetch url)"
+     "fetch and parse a page (plump DOM)")
+    ("(text node)"
+     "plain text of a plump node")
+    ("(clean string)"
+     "trim spaces, collapse blank lines")
+    ("(headers url)"
+     "h1-h6 texts of a page")
+    ("(page-text url)"
+     "readable plain text of a page")
     ("search.lisp")
-    ("(esearch \"query\" [n])" "Exa search -> (title url text)")
-    ("(bsearch \"query\" [n])" "Brave search -> (title url text)")
-    ("(curl-json &rest curl-args)" "run curl, parse JSON reply")
-    ("(results items text-key)" "hits -> (title url text) lists")
+    ("(esearch \"query\" [n])"
+     "Exa search -> (title url text)")
+    ("(bsearch \"query\" [n])"
+     "Brave search -> (title url text)")
+    ("(curl-json &rest curl-args)"
+     "run curl, parse JSON reply")
+    ("(results items text-key)"
+     "hits -> (title url text) lists")
     ("osascript.lisp")
-    ("(osascript \"return 1 + 10\")" "run AppleScript, return stdout")
-    ("(mail-unread-count)" "Mail inbox unread count")
-    ("(get-todays-events)" "today's Calendar event titles")
-    ("(add-reminder \"Buy milk\")" "add a Reminders item")
-    ("(send-imessage \"+1555...\" \"Hi\")" "send an iMessage")
-    ("(read-recent-imessages 3)" "recent iMessages as JSON")
-    ("(safari-login url user password)" "fill and submit a Safari login form")
+    ("(osascript \"return 1 + 10\")"
+     "run AppleScript, return stdout")
+    ("(mail-unread-count)"
+     "Mail inbox unread count")
+    ("(get-todays-events)"
+     "today's Calendar event titles")
+    ("(add-reminder \"Buy milk\")"
+     "add a Reminders item")
+    ("(send-imessage \"+1555...\" \"Hi\")"
+     "send an iMessage")
+    ("(read-recent-imessages 3)"
+     "recent iMessages as JSON")
+    ("(safari-login url user password)"
+     "fill and submit a Safari login form")
     ("symbolic-math.lisp  (p = (poly 3 -1 5) is 3x^2 - x + 5)")
-    ("(poly 3 -1 5)" "polynomial from coefficients")
-    ("(normalize terms)" "combine like terms, sort")
-    ("(p+ p q ...) (p- p q)" "add / subtract polynomials")
-    ("(scale p 2)" "multiply by a constant")
-    ("(degree p) (evaluate p 2)" "degree / value at x")
-    ("(deriv p [n])" "nth derivative")
-    ("(integ p [n])" "nth antiderivative (no +C)")
-    ("(bound :pi)" "bound -> float (numbers, :pi, :e)")
-    ("(definite p 0 1)" "definite integral from a to b")
-    ("(critical-point-p p 1/6)" "is p'(x) = 0 ?")
-    ("(->string p)" "p as text: 3x^2 + -1x + 5")
-    ("(integral->string p 0 1)" "integral as text")
+    ("(poly 3 -1 5)"
+     "polynomial from coefficients")
+    ("(normalize terms)"
+     "combine like terms, sort")
+    ("(p+ p q ...) (p- p q)"
+     "add / subtract polynomials")
+    ("(scale p 2)"
+     "multiply by a constant")
+    ("(degree p) (evaluate p 2)"
+     "degree / value at x")
+    ("(deriv p [n])"
+     "nth derivative")
+    ("(integ p [n])"
+     "nth antiderivative (no +C)")
+    ("(bound :pi)"
+     "bound -> float (numbers, :pi, :e)")
+    ("(definite p 0 1)"
+     "definite integral from a to b")
+    ("(critical-point-p p 1/6)"
+     "is p'(x) = 0 ?")
+    ("(->string p)"
+     "p as text: 3x^2 + -1x + 5")
+    ("(integral->string p 0 1)"
+     "integral as text")
     ("bayes.lisp")
-    ("(bayes-update dist evidence l-fn)" "Bayes update -> normalized posterior alist")
-    ("(bayes-normalize dist)" "normalize alist probabilities to sum to 1.0")
-    ("(map-hypothesis dist)" "maximum a posteriori (MAP) hypothesis pair")
+    ("(bayes-update dist evidence l-fn)"
+     "Bayes update -> normalized posterior alist")
+    ("(bayes-normalize dist)"
+     "normalize alist probabilities to sum to 1.0")
+    ("(map-hypothesis dist)"
+     "maximum a posteriori (MAP) hypothesis pair")
     ("triple-store.lisp")
-    ("(add-triple s p o)" "add (s p o) triple to store")
-    ("(query-triples patterns [store])" "query graph via pattern match & relational join")
+    ("(add-triple s p o)"
+     "add (s p o) triple to store")
+    ("(query-triples patterns [store])"
+     "query graph via pattern match & relational join")
     ("autograd.lisp")
-    ("(val number)" "wrap scalar in autograd computation node")
-    ("(v+ a b) (v* a b) (v-relu a)" "autograd scalar math operations")
-    ("(backward root)" "reverse-mode automatic differentiation backprop")
+    ("(val number)"
+     "wrap scalar in autograd computation node")
+    ("(v+ a b) (v* a b) (v-relu a)"
+     "autograd scalar math operations")
+    ("(backward root)"
+     "reverse-mode automatic differentiation backprop")
     ("bm25.lisp")
-    ("(tokenize text)" "extract alphanumeric lowercase tokens")
-    ("(bm25-search corpus query)" "Okapi BM25 ranked document retrieval")
+    ("(tokenize text)"
+     "extract alphanumeric lowercase tokens")
+    ("(bm25-search corpus query)"
+     "Okapi BM25 ranked document retrieval")
     ("hopfield.lisp")
-    ("(hopfield-train patterns size)" "Hebbian training -> 2D weight matrix")
-    ("(hopfield-recall w input [steps])" "associative recall of corrupted pattern")
-    ("(hopfield-energy w state)" "Lyapunov energy function")
-    ("(show-pattern pat [width])" "render bipolar pattern as #/. grid")
+    ("(hopfield-train patterns size)"
+     "Hebbian training -> 2D weight matrix")
+    ("(hopfield-recall w input [steps])"
+     "associative recall of corrupted pattern")
+    ("(hopfield-energy w state)"
+     "Lyapunov energy function")
+    ("(show-pattern pat [width])"
+     "render bipolar pattern as #/. grid")
     ("vector-store.lisp")
-    ("(make-vector-store)" "create in-memory dense vector store")
-    ("(store-add store id text vec)" "add labeled vector to store")
-    ("(store-search store qvec [k])" "top-K nearest neighbors by cosine similarity")
-    ("(v-dot a b)" "dot product of two vectors")
-    ("(v-norm a)" "Euclidean norm of a vector")
-    ("(v-cosine a b)" "cosine similarity between vectors")
+    ("(make-vector-store)"
+     "create in-memory dense vector store")
+    ("(store-add store id text vec)"
+     "add labeled vector to store")
+    ("(store-search store qvec [k])"
+     "top-K nearest neighbors by cosine similarity")
+    ("(v-dot a b)"
+     "dot product of two vectors")
+    ("(v-norm a)"
+     "Euclidean norm of a vector")
+    ("(v-cosine a b)"
+     "cosine similarity between vectors")
     ("summarizer.lisp")
-    ("(summarize text [n])" "extractive text summarization (top-N sentences)")
-    ("(words text) (split-sentences text)" "NLP tokenization and sentence segmentation")
+    ("(summarize text [n])"
+     "extractive text summarization (top-N sentences)")
+    ("(words text) (split-sentences text)"
+     "NLP tokenization and sentence segmentation")
     ("load.lisp")
-    ("(help [filter])" "print this list (optionally filtered by string)")))
+    ("(help [filter])"
+     "print this list (optionally filtered by string)")))
 
 (defun help (&optional filter)
   (let ((filter (and filter (string filter))))
@@ -1535,7 +1880,8 @@ All sixteen example programs in this book (every file except `load.lisp` itself 
       (if (cdr h)
           (when (or (null filter)
                     (search filter (first h) :test #'char-equal)
-                    (and (second h) (search filter (second h) :test #'char-equal)))
+                    (and (second h)
+                         (search filter (second h) :test #'char-equal)))
             (format t "  ~34a ; ~a~%" (first h) (second h)))
           (when (null filter)
             (format t "~a~%" (first h))))))
