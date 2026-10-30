@@ -1,4 +1,4 @@
-;; sbcl --script bayes.lisp   (Bayesian inference & medical base-rate fallacy)
+;; sbcl --script bayes.lisp (Bayesian inference)
 
 (defun bayes-normalize (dist)
   (let ((sum (reduce #'+ dist :key #'cdr)))
@@ -7,7 +7,9 @@
 (defun bayes-update (dist evidence likelihood-fn)
   (bayes-normalize
    (mapcar (lambda (p)
-             (cons (car p) (* (cdr p) (funcall likelihood-fn (car p) evidence))))
+             (cons (car p)
+                   (* (cdr p)
+                      (funcall likelihood-fn (car p) evidence))))
            dist)))
 
 (defun map-hypothesis (dist)
@@ -19,11 +21,15 @@
        (likelihood (lambda (hyp test-result)
                      (case hyp
                        (has-disease (if (eq test-result '+) 0.95 0.05))
-                       (healthy     (if (eq test-result '+) 0.05 0.95)))))
+                       (healthy
+                        (if (eq test-result '+) 0.05 0.95)))))
        (post1 (bayes-update prior '+ likelihood))
        (post2 (bayes-update post1 '+ likelihood)))
-  (format t "Prior:         ~{~a: ~,4f~^, ~}~%" (mapcan (lambda (p) (list (car p) (cdr p))) prior))
+  (format t "Prior:         ~{~a: ~,4f~^, ~}~%"
+          (mapcan (lambda (p) (list (car p) (cdr p))) prior))
   (format t "After 1st (+): ~{~a: ~,4f~^, ~}  -> MAP: ~a~%"
-          (mapcan (lambda (p) (list (car p) (cdr p))) post1) (car (map-hypothesis post1)))
+          (mapcan (lambda (p) (list (car p) (cdr p))) post1)
+          (car (map-hypothesis post1)))
   (format t "After 2nd (+): ~{~a: ~,4f~^, ~}  -> MAP: ~a~%"
-          (mapcan (lambda (p) (list (car p) (cdr p))) post2) (car (map-hypothesis post2))))
+          (mapcan (lambda (p) (list (car p) (cdr p))) post2)
+          (car (map-hypothesis post2))))

@@ -1,4 +1,4 @@
-;; sbcl --script vector-store.lisp   (dense vector store & cosine similarity search)
+;; sbcl --script vector-store.lisp (in-memory dense vector store)
 
 (defun v-dot (a b)
   (loop for x across a for y across b sum (* x y)))
@@ -18,11 +18,13 @@
 
 (defun store-search (store query-vec &optional (k 3))
   (let ((qv (coerce query-vec 'vector)))
-    (subseq (sort (loop for id being the hash-keys of store using (hash-value item)
-                        for score = (v-cosine qv (second item))
-                        collect (list score id (first item)))
-                  #'> :key #'car)
-            0 (min k (hash-table-count store)))))
+    (subseq
+     (sort (loop for id being the hash-keys of store
+                   using (hash-value item)
+                 for score = (v-cosine qv (second item))
+                 collect (list score id (first item)))
+           #'> :key #'car)
+     0 (min k (hash-table-count store)))))
 
 ;; Demo: Semantic vector search in 4D concept space
 (let ((store (make-vector-store)))
@@ -36,8 +38,10 @@
 
   (format t "~%Query 1: Royal female concept #(0.85 0.85 0.05 0.10)~%")
   (dolist (hit (store-search store #(0.85 0.85 0.05 0.10) 3))
-    (format t "  [sim: ~5,3f] (~a) ~s~%" (first hit) (second hit) (third hit)))
+    (format t "  [sim: ~5,3f] (~a) ~s~%"
+            (first hit) (second hit) (third hit)))
 
   (format t "~%Query 2: Sweet fruit concept #(0.05 0.10 0.85 0.90)~%")
   (dolist (hit (store-search store #(0.05 0.10 0.85 0.90) 3))
-    (format t "  [sim: ~5,3f] (~a) ~s~%" (first hit) (second hit) (third hit))))
+    (format t "  [sim: ~5,3f] (~a) ~s~%"
+            (first hit) (second hit) (third hit))))

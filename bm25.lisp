@@ -19,27 +19,44 @@
          (avgdl (/ (reduce #'+ lens) (float (max 1 n))))
          (q-terms (remove-duplicates (tokenize query) :test #'string=)))
     (labels ((idf (term)
-               (let ((df (count-if (lambda (d) (member term d :test #'string=)) docs)))
+               (let ((df (count-if (lambda (d)
+                                     (member term d :test #'string=))
+                                   docs)))
                  (log (+ 1.0 (/ (+ (- n df) 0.5) (+ df 0.5)))))))
       (sort (loop for doc in docs
                   for raw in corpus
                   for len in lens
-                  for score = (loop for term in q-terms
-                                    for tf = (count term doc :test #'string=)
-                                    when (> tf 0)
-                                    sum (* (idf term)
-                                           (/ (* tf (+ k1 1.0))
-                                              (+ tf (* k1 (+ (- 1.0 b) (* b (/ len avgdl))))))))
+                  for score =
+                  (loop for term in q-terms
+                        for tf = (count term doc :test #'string=)
+                        when (> tf 0)
+                        sum (* (idf term)
+                               (/ (* tf (+ k1 1.0))
+                                  (+ tf (* k1
+                                           (+ (- 1.0 b)
+                                              (* b (/ len avgdl))))))))
                   when (> score 0.0)
                   collect (list score raw))
             #'> :key #'car))))
 
 ;; Demo: Document corpus search
-(let ((corpus '("Common Lisp is a general-purpose programming language with powerful macros."
-                "Python is an interpreted language known for data science and machine learning."
-                "Deep learning models require automatic differentiation and gradient optimization."
-                "Macros in Common Lisp enable syntactic metaprogramming and DSL design."
-                "Okapi BM25 is an information retrieval ranking function used in search engines.")))
+(let ((corpus
+        (list
+         (concatenate 'string
+          "Common Lisp is a general-purpose programming language "
+          "with powerful macros.")
+         (concatenate 'string
+          "Python is an interpreted language known for data science "
+          "and machine learning.")
+         (concatenate 'string
+          "Deep learning models require automatic differentiation "
+          "and gradient optimization.")
+         (concatenate 'string
+          "Macros in Common Lisp enable syntactic metaprogramming "
+          "and DSL design.")
+         (concatenate 'string
+          "Okapi BM25 is an information retrieval ranking function "
+          "used in search engines."))))
   (format t "Corpus size: ~a documents~%" (length corpus))
   (dolist (query '("Common Lisp macros" "search ranking" "learning"))
     (format t "~%Query: ~s~%" query)

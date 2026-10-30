@@ -1,4 +1,4 @@
-;; sbcl --script hopfield.lisp   (Hopfield associative memory neural network)
+;; sbcl --script hopfield.lisp (Hopfield associative neural network)
 
 (defun hopfield-train (patterns size)
   (let ((w (make-array (list size size) :initial-element 0)))
@@ -13,13 +13,17 @@
         (n (length input)))
     (dotimes (_ steps state)
       (dotimes (i n)
-        (let ((sum (loop for j below n sum (* (aref w i j) (nth j state)))))
+        (let ((sum (loop for j below n
+                         sum (* (aref w i j) (nth j state)))))
           (setf (nth i state) (if (>= sum 0) 1 -1)))))))
 
 (defun hopfield-energy (w state)
-  (- (* 0.5 (loop for i below (length state)
-                  sum (loop for j below (length state)
-                            sum (* (aref w i j) (nth i state) (nth j state)))))))
+  (- (* 0.5
+        (loop for i below (length state)
+              sum (loop for j below (length state)
+                        sum (* (aref w i j)
+                               (nth i state)
+                               (nth j state)))))))
 
 (defun show-pattern (pat &optional (width 4))
   (loop for i from 0 below (length pat)
@@ -41,10 +45,13 @@
                 (dolist (idx '(0 5 10) cp)
                   (setf (nth idx cp) (- (nth idx cp))))))
        (recalled (hopfield-recall w noisy)))
-  (format t "Original Pattern 'X' (Energy: ~,1f):~%" (hopfield-energy w pattern-x))
+  (format t "Original Pattern 'X' (Energy: ~,1f):~%"
+          (hopfield-energy w pattern-x))
   (show-pattern pattern-x)
-  (format t "~%Noisy Pattern with 3 bit-flips (Energy: ~,1f):~%" (hopfield-energy w noisy))
+  (format t "~%Noisy Pattern with 3 bit-flips (Energy: ~,1f):~%"
+          (hopfield-energy w noisy))
   (show-pattern noisy)
-  (format t "~%Recalled Associative Memory (Energy: ~,1f):~%" (hopfield-energy w recalled))
+  (format t "~%Recalled Associative Memory (Energy: ~,1f):~%"
+          (hopfield-energy w recalled))
   (show-pattern recalled)
   (format t "~%Recovered perfectly? ~a~%" (equal recalled pattern-x)))
