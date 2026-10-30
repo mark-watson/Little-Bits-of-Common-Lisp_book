@@ -6,6 +6,16 @@
 
 **by Mark Watson**
 
+# Preface
+
+I have used Common Lisp professionally since 1982. The language remains fast, flexible, and stable for artificial intelligence, data processing, and symbolic computing.
+
+This book collects small, complete programs. Each chapter provides one working example in a single file. You can read the chapters in any order. Pick the topics that interest you most and run the code.
+
+For in-depth coverage and larger projects, see my book *Loving Common Lisp* at <https://leanpub.com/lovinglisp>. You can find my other books, software, and articles at <https://markwatson.com>.
+
+I thank my wife Carol Watson for her support and editorial help.
+
 {mainmatter}
 
 # Introduction
