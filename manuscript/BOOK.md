@@ -1,5 +1,3 @@
-{frontmatter}
-
 # Little Bits of Common Lisp
 
 *Seventeen tiny programs: LLMs, the web, macOS automation, classic AI, and symbolic math — each in a single file*
@@ -15,8 +13,6 @@ This book collects small, complete programs. Each chapter provides one working e
 For in-depth coverage and larger projects, see my book *Loving Common Lisp* at <https://leanpub.com/lovinglisp>. You can find my other books, software, and articles at <https://markwatson.com>.
 
 I thank my wife Carol Watson for her support and editorial help.
-
-{mainmatter}
 
 # Introduction
 
@@ -36,7 +32,7 @@ A stylistic note: the network-facing examples shell out to `curl` (via `uiop:run
 - **Lightpanda** — the Lightpanda headless browser binary for that chapter.
 - **macOS** — for the AppleScript automation and Apple Foundation Model chapters.
 
-Every program begins with a comment showing exactly how to run it. The chapters are independent — read them in any order. If you would rather load every definition into one REPL session and experiment interactively, see the appendix on `load.lisp`.
+Every program begins with a comment showing exactly how to run it. The chapters are independent, read them in any order. If you would rather load every definition into one REPL session and experiment interactively, see the last chapter on `load.lisp`. On my system, I load `load.lisp` in my SBCL `.sbclrc` file: with the exported **help** function I can use any of the code in this book during interactive coding sessions.
 
 ## Which chapters run as-is
 
@@ -140,7 +136,7 @@ This program calls Google's Gemini API and parses the JSON reply, in eighteen li
 
 - `#-quicklisp` reads as "if Quicklisp is not already loaded": when run as a script, load `~/quicklisp/setup.lisp` first. This idiom lets the same file work both as a script and inside a REPL that already has Quicklisp.
 - `com.inuoe.jzon` is a fast, sane JSON library. `jzon:parse` turns JSON into hash tables and vectors; `jzon:stringify` turns a Lisp string into a properly escaped JSON string literal.
-- The request body is built with `format`, using `jzon:stringify` to escape the prompt safely — embedding user text in JSON by hand is an injection bug waiting to happen, and the one-line `stringify` call prevents it.
+- The request body is built with `format`, using `jzon:stringify` to escape the prompt safely: embedding user text in JSON by hand is an injection bug waiting to happen, and the one-line `stringify` call prevents it.
 - `curl -s` POSTs to the `generateContent` endpoint with the API key in the `x-goog-api-key` header, read from the environment with `uiop:getenv`.
 - The reply is nested JSON: `candidates[0].content.parts[0].text`. The final expression walks that structure with `gethash` and `aref`.
 
@@ -159,7 +155,7 @@ Actual output (the exact wording varies from run to run, as with any language mo
 
 ## Using It
 
-Pass a second argument to switch models: `(gemini "summarize this file" "gemini-3.5-flash")`. The function composes well with the file-based examples later in the book — summarize the output of the web-scraping chapter, or answer questions about documents ranked by the BM25 chapter. Errors (a missing key, a rate limit) come back as JSON without a `candidates` field, so a production version should check for that before walking the hash tables.
+Pass a second argument to switch models: `(gemini "summarize this file" "gemini-3.5-flash")`. The function composes well with the file-based examples later in the book: summarize the output of the web-scraping chapter, or answer questions about documents ranked by the BM25 chapter. Errors (a missing key, a rate limit) come back as JSON without a `candidates` field, so a production version should check for that before walking the hash tables.
 
 # Local LLMs with Ollama
 
@@ -197,7 +193,7 @@ The same pattern as the Gemini chapter, but pointed at a model running on your o
 ## How It Works
 
 - Ollama serves a local HTTP API on port 11434. The `/api/generate` endpoint takes a model name and a prompt.
-- `"stream":false` asks for the complete reply in one JSON document instead of a stream of token fragments — much easier to handle with a single `jzon:parse`.
+- `"stream":false` asks for the complete reply in one JSON document instead of a stream of token fragments, which is much easier to handle with a single `jzon:parse`.
 - `"think":false` disables the reasoning trace on models that support it (like the Qwen 3 family), so the `response` field contains just the answer.
 - The reply's `response` key holds the generated text, which is all this program returns.
 
@@ -217,7 +213,7 @@ Actual output (the exact wording varies from run to run):
 
 ## Using It
 
-Local models are private, free per call, and work offline — ideal for batch jobs over local documents (pair this with the summarizer or vector-store chapters). Swap the model name to use anything you have pulled: `(ollama "hi" "llama3.2")`. Latency depends on your hardware; small 4B-class models are comfortable on a laptop.
+Local models are private, free per call, and work offline, which is ideal for batch jobs over local documents (pair this with the summarizer or vector-store chapters). Swap the model name to use anything you have pulled: `(ollama "hi" "llama3.2")`. Latency depends on your hardware; small 4B-class models are comfortable on a laptop.
 
 # Web Search with Exa and Brave
 
@@ -283,9 +279,9 @@ Two search-engine APIs, one calling convention: both `esearch` and `bsearch` tak
 ## How It Works
 
 - `curl-json` is a tiny but genuinely reusable helper: run `curl -s` with any argument list, parse the reply as JSON. `list*` prepends `"curl" "-s"` to whatever arguments the caller supplies.
-- `results` normalizes both APIs into the same shape. The two engines differ in one detail — Exa's page content comes back under the key `text`, Brave's snippet under `description` — so the text key is a parameter.
+- `results` normalizes both APIs into the same shape. The two engines differ in one detail (Exa's page content comes back under the key `text`, Brave's snippet under `description`) so the text key is a parameter.
 - `esearch` POSTs JSON, asking Exa to include up to 300 characters of page text per hit.
-- `bsearch` uses `curl -G` with `--data-urlencode` for a properly URL-encoded GET request — the right tool when parameters go in the query string rather than a JSON body.
+- `bsearch` uses `curl -G` with `--data-urlencode` for a properly URL-encoded GET request that is the right tool when parameters go in the query string rather than a JSON body.
 
 ## Running It
 
@@ -384,7 +380,7 @@ DBpedia and Wikidata are enormous public knowledge graphs, and both answer SPARQ
 
 ## How It Works
 
-- The request is a GET with the query URL-encoded via `--data-urlencode`, and an `Accept` header asking for the standard JSON results format. A descriptive `User-Agent` (`-A`) is good manners — and some endpoints, Wikidata in particular, ask for one.
+- The request is a GET with the query URL-encoded via `--data-urlencode`, and an `Accept` header asking for the standard JSON results format. A descriptive `User-Agent` (`-A`) is good manners and some endpoints, Wikidata in particular, ask for one.
 - In the JSON results format, each solution is an object mapping variable names to binding objects; the binding's `value` key holds the lexical form. The inner `loop` flattens that into the Lisp-native `(variable . value)` alist shape.
 - `dbpedia` and `wikidata` are one-line specializations of `sparql` for the two endpoints.
 
@@ -408,7 +404,7 @@ The second asks Wikidata for the English label of the entity `wd:Q5284` (Bill Ga
 
 ## Using It
 
-Structured knowledge graphs complement the statistical text sources in the rest of this book: SPARQL gives you precise, citable facts rather than snippets. Try asking DBpedia for the abstract of a topic (`dbo:abstract`), or use Wikidata's `wdt:` property paths to walk relationships. The triple-store chapter later in the book implements a miniature version of this same idea — pattern matching with variables — over in-memory data.
+Structured knowledge graphs complement the statistical text sources in the rest of this book: SPARQL gives you precise, citable facts rather than snippets. Try asking DBpedia for the abstract of a topic (`dbo:abstract`), or use Wikidata's `wdt:` property paths to walk relationships. The triple-store chapter later in the book implements a miniature version of this same idea (pattern matching with variables) over in-memory data.
 
 # JavaScript-Rendered Pages with Lightpanda
 
@@ -483,7 +479,7 @@ and advisory experience for organizations including **Google**,
 "
 ```
 
-The second prints a list of the page's href strings — actual output, abridged:
+The second prints a list of the page's href strings as actual output (abridged):
 
 ```text
 ("/index.css" "#" "#systems" "#books" "#connect" "#mentoring"
@@ -614,13 +610,13 @@ CompassLabs.
 
 ## Using It
 
-`page-text` is a good front end for the summarizer chapter: summarize any web page with `(summarize (page-text url) 3)`. `headers` alone is handy for skimming a page's structure. The trade-off versus the Lightpanda chapter: this approach is faster and has no external binary dependency, but it never runs JavaScript — pick per page.
+`page-text` is a good front end for the summarizer chapter: summarize any web page with `(summarize (page-text url) 3)`. `headers` alone is handy for skimming a page's structure. The trade-off versus the Lightpanda chapter: this approach is faster and has no external binary dependency, but it never runs JavaScript.
 
 # Automating macOS with AppleScript
 
 File: `osascript.lisp`
 
-macOS exposes Mail, Calendar, Reminders, Messages, and Safari to AppleScript — and `osascript` runs AppleScript from the command line. From Lisp, that means every one of those apps is one `uiop:run-program` call away.
+macOS exposes Mail, Calendar, Reminders, Messages, and Safari to AppleScript. The utility `osascript` runs AppleScript from the command line. From Lisp, that means every one of those apps is one `uiop:run-program` call away.
 
 ## The Code
 
@@ -739,7 +735,7 @@ error \"Safari page did not load within ~d seconds\""
 - `osascript` (the Lisp function) captures stdout, stderr, and the exit code separately via `multiple-value-bind`; a non-zero exit signals a Lisp error carrying AppleScript's own error message.
 - The `~S` format directive is the elegant trick in this file: it prints a Lisp string as a quoted, escaped string literal, which is *also* valid AppleScript (and JavaScript) syntax. That makes string interpolation into scripts safe and readable.
 - `get-todays-events` shows a real AppleScript pattern: build a list, set `text item delimiters` to a separator, return it as a string, then split on the Lisp side with `uiop:split-string`.
-- `read-recent-imessages` bypasses AppleScript entirely and queries Messages' SQLite database directly with `sqlite3 -json` — which is why it needs Full Disk Access. `check-type` guards the `limit` parameter that gets spliced into SQL.
+- `read-recent-imessages` bypasses AppleScript entirely and queries Messages' SQLite database directly with `sqlite3 -json` which is why it needs Full Disk Access. `check-type` guards the `limit` parameter that gets spliced into SQL.
 - `safari-login` opens a page, polls `document.readyState` every half second until the page loads (or errors after `timeout` seconds), then runs JavaScript that fills the username/password fields and submits the form.
 
 ## Running It
@@ -752,7 +748,7 @@ Load the file in a REPL rather than as a script, since the examples at the botto
 "11"
 ```
 
-The `"11"` above is real output, verified by running it. The remaining functions are shown as calls rather than transcripts because their results depend on your machine's live state (inbox count, today's calendar) or change it (sending a message, adding a reminder) — try them in your own REPL.
+The `"11"` above is real output, verified by running it. The remaining functions are shown as calls rather than transcripts because their results depend on your machine's live state (inbox count, today's calendar) or change it (sending a message, adding a reminder) so try them in your own REPL.
 
 ## Using It
 
@@ -816,7 +812,7 @@ The program works with whole distributions at once: a distribution is an alist o
 
 - `bayes-update` multiplies each prior probability by the likelihood of the evidence under that hypothesis, then `bayes-normalize` divides through by the total so the probabilities sum to one again. That product-then-normalize pair *is* Bayes' theorem.
 - The likelihood is passed in as a function, so the same updater works for any hypothesis/evidence types.
-- `map-hypothesis` returns the most probable pair — the maximum a posteriori (MAP) estimate.
+- `map-hypothesis` returns the most probable pair that is the maximum a posteriori (MAP) estimate.
 - `reduce` with `:key #'cdr` sums probabilities without a loop; the `~{...~^, ~}` format directive prints the alist as a comma-separated table.
 
 ## Running It
@@ -833,7 +829,7 @@ After 1st (+): HAS-DISEASE: 0.1610, HEALTHY: 0.8390  -> MAP: HEALTHY
 After 2nd (+): HAS-DISEASE: 0.7848, HEALTHY: 0.2152  -> MAP: HAS-DISEASE
 ```
 
-The first line is the fallacy made concrete: even with a positive result from a "95% accurate" test, a patient with a 1%-prevalence disease probably does *not* have it — the posterior is only about 16%:
+The first line is the fallacy made concrete: even with a positive result from a "95% accurate" test, a patient with a 1%-prevalence disease probably does *not* have it because the posterior is only about 16%:
 
 ```$
 P(D \mid +) = \frac{0.95 \cdot 0.01}{0.95 \cdot 0.01 + 0.05 \cdot 0.99} \approx 0.161
@@ -843,7 +839,7 @@ Feeding the posterior back in as the new prior for a second independent positive
 
 ## Using It
 
-Swap in your own hypotheses and likelihoods: spam classification, sensor fusion, diagnosis with more than two hypotheses. The one caveat is the independence assumption — sequential `bayes-update` calls treat each piece of evidence as conditionally independent given the hypothesis, so correlated evidence (say, the same test run twice) will overconfidently multiply.
+Swap in your own hypotheses and likelihoods: spam classification, sensor fusion, diagnosis with more than two hypotheses. The one caveat is the independence assumption: sequential `bayes-update` calls treat each piece of evidence as conditionally independent given the hypothesis, so correlated evidence (say, the same test run twice) will overconfidently multiply.
 
 # Ranking Documents with BM25
 
@@ -964,11 +960,11 @@ Query: "learning"
   [score: 0.834] Python is an interpreted language known for data science and machine learning.
 ```
 
-Note how "search ranking" ranks the BM25 document first even though the query words appear in other documents too — `idf` rewards discriminative terms.
+Note how "search ranking" ranks the BM25 document first even though the query words appear in other documents too; note that `idf` rewards discriminative terms.
 
 ## Using It
 
-BM25 is a strong baseline for any local keyword-search task: your notes, a documentation set, log files. It also complements the vector-store chapter nicely — hybrid search systems routinely merge BM25 (exact keyword match) with embedding similarity (semantic match). The `(score document)` pairs come back sorted, ready to truncate to a top-`k`$ list.
+BM25 is a strong baseline for any local keyword-search task: your notes, a documentation set, log files. It also complements the vector-store chapter nicely, and indeed, hybrid search systems routinely merge BM25 (exact keyword match) with embedding similarity (semantic match). The `(score document)` pairs come back sorted, ready to truncate to a top-`k`$ list.
 
 # Associative Memory with Hopfield Networks
 
@@ -1054,9 +1050,9 @@ so the state slides downhill into a stored pattern.
 
 ## How It Works
 
-- `hopfield-train` accumulates the outer product of each pattern into an `N \times N`$ weight matrix, skipping the diagonal — the entire learning rule is one `incf`.
+- `hopfield-train` accumulates the outer product of each pattern into an `N \times N`$ weight matrix, skipping the diagonal so the entire learning rule is one `incf`.
 - `hopfield-recall` copies the input (so the caller's list is not mutated) and runs `steps` sweeps of synchronous updates; `(if (>= sum 0) 1 -1)` is the sign activation.
-- `hopfield-energy` computes the Lyapunov function above — useful for watching recall make progress, as the demo shows.
+- `hopfield-energy` computes the Lyapunov function above which is useful for watching recall make progress, as the demo shows.
 - `show-pattern` renders a bipolar list as a `#`/`.` grid.
 
 ## Running It
@@ -1093,7 +1089,7 @@ The corrupted pattern starts at energy `-52.0`; five update sweeps pull it back 
 
 ## Using It
 
-Hopfield networks are a lovely teaching tool — attractor dynamics, Hebbian learning, and energy minimization in sixty lines. Practically, their capacity is limited (roughly `0.15N`$ random patterns before interference sets in), but the same outer-product idea reappears in modern associative-memory and attention literature. Try training on the `O` pattern, corrupting *it*, and confirming recall lands in the right attractor; then push past capacity and watch it create spurious mixtures.
+Hopfield networks are lovely teaching tools for attractor dynamics, Hebbian learning, and energy minimization - and all in sixty lines! Practically, their capacity is limited (roughly `0.15N`$ random patterns before interference sets in), but the same outer-product idea reappears in modern associative-memory and attention literature. Try training on the `O` pattern, corrupting *it*, and confirming recall lands in the right attractor; then push past capacity and watch it create spurious mixtures.
 
 # A Tiny Triple Store
 
@@ -1172,7 +1168,7 @@ An RDF-style triple store with a pattern-matching query engine in under thirty l
 ## How It Works
 
 - The store `*store*` is just a list of `(subject predicate object)` triples; `add-triple` pushes onto it. The `store-var` parameter defaults to the special variable but lets you keep several stores.
-- A "variable" is any symbol whose name starts with `?` (`var-p`) — a lightweight convention borrowed from SPARQL.
+- A "variable" is any symbol whose name starts with `?` (`var-p`) that is a lightweight convention borrowed from SPARQL.
 - `match-triple` unifies one pattern against one triple given a binding environment (an alist): a variable already bound must match its binding, an unbound variable gets bound, a literal must be `equal`. It returns the extended environment or the keyword `:fail`.
 - `query-triples` is where the join happens: it threads a *list* of environments through the pattern list. For each pattern it tries every triple against every live environment (on a `copy-alist`, so failed branches never pollute sibling bindings) and keeps the successes. Two patterns mentioning the same variable therefore act as a relational join.
 
@@ -1201,7 +1197,7 @@ Query 3: All people in Paris and their occupations:
   DESCARTES is a PHILOSOPHER in Paris
 ```
 
-Query 2 is the one to study: `?who` gets bound by the first pattern, and the second pattern only succeeds where that same binding is a philosopher — Descartes alone survives.
+Query 2 is the one to study: `?who` gets bound by the first pattern, and the second pattern only succeeds where that same binding is a philosopher and in this example Descartes alone survives this filter.
 
 ## Using It
 
@@ -1274,7 +1270,7 @@ Cosine similarity measures the angle between two vectors, ignoring their magnitu
 ## How It Works
 
 - `v-dot` iterates two vectors in lockstep with `loop ... across`, and `v-norm` reuses it for the Euclidean norm `\lVert a \rVert = \sqrt{a \cdot a}`$.
-- `v-cosine` guards against division by zero — a zero vector is defined to have similarity `0.0`$ with everything.
+- `v-cosine` guards against division by zero: a zero vector is defined to have similarity `0.0`$ with everything.
 - The store maps `id` to `(text vector)` in an `equal` hash table, so string IDs work. `store-add` coerces lists to vectors so callers can pass either.
 - `store-search` scores every entry, sorts descending, and returns the top `k`$ as `(score id text)` triples. `min` keeps `subseq` in bounds when the store holds fewer than `k`$ items.
 
@@ -1300,11 +1296,11 @@ Query 2: Sweet fruit concept #(0.05 0.10 0.85 0.90)
   [sim: 0.201] (item-3) "princess"
 ```
 
-The demo uses hand-made 4D vectors whose axes loosely encode royalty, gender, and fruitness. Query 1 (high royalty, female) ranks "queen" and "princess" above "king"; query 2 ranks the fruits above everything.
+The demo uses hand-made 4D vectors whose axes loosely encode royalty, gender, and fruitiness. Query 1 (high royalty, female) ranks "queen" and "princess" above "king"; query 2 ranks the fruits above everything.
 
 ## Using It
 
-Replace the toy vectors with real embeddings from an API (Gemini and Ollama both offer embedding endpoints) and this exact code becomes a semantic search engine over your documents: chunk text, embed each chunk, `store-add`, then `store-search` with the embedded question. Brute-force scoring is fine for thousands of vectors; beyond that, look at approximate-nearest-neighbor indexes — the interface here (add, search top-`k`$) is designed to look like one.
+Replace the toy vectors with real embeddings from an API (Gemini and Ollama both offer embedding endpoints) and this exact code becomes a semantic search engine over your documents: chunk text, embed each chunk, `store-add`, then `store-search` with the embedded question. Brute-force scoring is fine for thousands of vectors; beyond this limit, look at approximate-nearest-neighbor indexes — the interface here (add, search top-`k`$) is designed to look like one.
 
 # Extractive Text Summarization
 
@@ -1403,7 +1399,7 @@ where `\mathrm{freq}(w)`$ counts occurrences of word `w`$ across the whole docum
 
 - `words` and `split-sentences` are the same hand-rolled scanner pattern as the BM25 chapter: `loop` over characters, accumulate, emit on boundaries. Sentences break on `.`, `!`, or `?`.
 - Frequencies accumulate in an `equal` hash table, skipping `*stop-words*` so common function words do not dominate the scores.
-- Each sentence's score is the *average* of its word frequencies — dividing by sentence length prevents long sentences from winning merely by containing more words.
+- Each sentence's score is the *average* of its word frequencies, dividing by sentence length prevents long sentences from winning merely by containing more words.
 - The last expression is the subtle part: `sort` by score descending, take the top `n` with `subseq`, then `sort` *again* by the original sentence index ascending. That second sort restores document order so the summary reads naturally.
 - `summarize` never mutates its input; the scoring triples `(score idx s)` carry the index through both sorts.
 
@@ -1425,7 +1421,7 @@ Extractive 2-Sentence Summary:
 
 ## Using It
 
-Feed it the output of the web-scraping chapter — `(summarize (page-text url) 3)` summarizes a web page without any AI service. It also works as a compression stage in front of an LLM: extract the top sentences locally, then ask Gemini or Ollama for an abstractive rewrite of just those. Adjust `*stop-words*` for your domain, and treat the sentence splitter as a heuristic (abbreviations like "Dr." will fool it).
+Feed it the output of the example in the web-scraping chapter — `(summarize (page-text url) 3)` summarizes a web page `url` without any AI service. It also works as a compression stage in front of an LLM: extract the top sentences locally, then ask Gemini or Ollama for an abstractive rewrite of just those. Adjust `*stop-words*` for your domain, and treat the sentence splitter as a heuristic (abbreviations like "Dr." will fool it).
 
 # Symbolic Polynomial Math
 
@@ -1433,7 +1429,7 @@ File: `symbolic-math.lisp`
 
 A tiny computer-algebra kernel: polynomials as association lists, exact rational arithmetic, derivatives, integrals, and definite integrals by the fundamental theorem of calculus.
 
-A polynomial is stored as a sorted alist of `(exponent . coefficient)` pairs with like terms combined and zeros dropped — so `3x^2 - x + 5`$ is `((2 . 3) (1 . -1) (0 . 5))`. The calculus is the power rule in both directions:
+A polynomial is stored as a sorted alist of `(exponent . coefficient)` pairs with like terms combined and zeros dropped, so `3x^2 - x + 5`$ is `((2 . 3) (1 . -1) (0 . 5))`. The calculus is the power rule in both directions:
 
 ```$
 \frac{d}{dx} x^n = n\, x^{n-1}, \qquad \int x^n\, dx = \frac{x^{n+1}}{n+1}
@@ -1540,11 +1536,11 @@ and definite integrals evaluate the antiderivative at the endpoints:
 
 - `normalize` is the invariant-keeper: it sums coefficients per exponent in a hash table, drops zero coefficients, and sorts by descending exponent. Every constructor and arithmetic function funnels through it, so polynomials are always in canonical form.
 - `poly` builds a polynomial from coefficients highest-degree first: `(poly 3 -1 5)` means `3x^2 - x + 5`$.
-- Because coefficients are ordinary Lisp numbers, ratios stay exact — the antiderivative of `3x^2`$ has coefficient `3/3 = 1`$, but the antiderivative of `-x`$ genuinely carries the rational `-\frac{1}{2}`$.
+- Because coefficients are ordinary Lisp numbers, ratios stay exact and the antiderivative of `3x^2`$ has coefficient `3/3 = 1`$, but the antiderivative of `-x`$ genuinely carries the rational `-\frac{1}{2}`$.
 - `deriv` and `integ` take an optional repetition count: `(deriv p 3)` is the third derivative, computed by recursing on the single-step rule. The constant term vanishes under `deriv` via the `unless (zerop e)` clause.
-- `bound` lets integration bounds be numbers or the keywords `:pi` and `:e`, converting everything to a double float — which is why `definite` results print with the `d0` double-float marker.
-- `critical-point-p` checks whether `p'(x) = 0`$ within a tolerance — for a quadratic, the exact answer: `p'(x) = 6x - 1 = 0`$ at `x = 1/6`$.
-- `->string` and `integral->string` are pure `format` exercises: `~@[...~]` prints a group only when its argument is non-nil, which is how the variable and exponent appear conditionally. Note the literal-minded `3x^2 + -1x + 5` in the output below: `->string` never special-cases negative coefficients — teaching it to print `- x` instead of `+ -1x` is a good first exercise.
+- `bound` lets integration bounds be numbers or the keywords `:pi` and `:e`, converting everything to a double float, which is why `definite` results print with the `d0` double-float marker.
+- `critical-point-p` checks whether `p'(x) = 0`$ within a tolerance; for a quadratic, the exact answer: `p'(x) = 6x - 1 = 0`$ at `x = 1/6`$.
+- `->string` and `integral->string` are pure `format` exercises: `~@[...~]` prints a group only when its argument is non-nil, which is how the variable and exponent appear conditionally. Note the literal-minded `3x^2 + -1x + 5` in the output below: `->string` never special-cases negative coefficients so teaching it to print `- x` instead of `+ -1x` is a good first exercise.
 
 ## Running It
 
@@ -1577,7 +1573,7 @@ The exact rational antiderivative (`-1/2x^2`, `5/2x^2` in the output) is visible
 
 ## Using It
 
-Handy for checking calculus homework, generating exact examples for teaching material, or serving as the symbolic core of a bigger system. Natural extensions: polynomial multiplication (convolve the alists), rational functions as pairs of polynomials, or a `solve` for quadratic roots. The representation decision — canonical alists — is what keeps every operation a one-liner; it is worth studying as much as the calculus.
+Handy for checking calculus homework, generating exact examples for teaching material, or serving as the symbolic core of a bigger system. Natural extensions: polynomial multiplication (convolve the alists), rational functions as pairs of polynomials, or a `solve` for quadratic roots. The representation decision (canonical alists) is what keeps every operation a one-liner; it is worth studying as much as the calculus.
 
 # Scalar Automatic Differentiation
 
@@ -1659,8 +1655,8 @@ Each node records its value, its parents, and a closure implementing the *local*
 ## How It Works
 
 - `defstruct` with a renamed internal constructor `%val` is a common Lisp pattern: the public function `val` then acts as a smart constructor that coerces numbers to floats and passes existing nodes through untouched. That is what lets `v+` accept `(v+ 2 x)` as easily as `(v+ x y)`.
-- Each operation builds its output node, then installs a `backward` closure capturing the inputs. The closure *accumulates* (`incf`) into parent gradients rather than assigning — required for correctness when a value feeds into the graph more than once.
-- `backward` does a depth-first topological sort of the graph (`labels` defines the local recursive `build`; an `eq` hash table tracks visited nodes), seeds the root's gradient at `1.0`$, and fires the closures in reverse-topological order — root first — so every node's gradient is final before its own closure runs.
+- Each operation builds its output node, then installs a `backward` closure capturing the inputs. The closure *accumulates* (`incf`) into parent gradients rather than assigning. And this is required for correctness when a value feeds into the graph more than once.
+- `backward` does a depth-first topological sort of the graph (`labels` defines the local recursive `build`; an `eq` hash table tracks visited nodes), seeds the root's gradient at `1.0`$, and fires the closures in reverse-topological order (i.e., root first) so every node's gradient is final before its own closure runs.
 - `op` is stored purely for inspection/debugging; the computation lives entirely in the closures.
 
 ## Running It
@@ -1702,19 +1698,19 @@ and since `e = d`$ here (the relu is in its linear region), the chain rule gives
 \end{aligned}
 ```
 
-— matching the program exactly.
+Please note, dear reader, that this matches the program exactly.
 
 ## Using It
 
-This is Andrej Karpathy's *micrograd* idea, ported to Lisp. To grow it into a trainable neuron: add `v-tanh` or `v-exp` (each needs only its local gradient), build a dot product out of `v*` and `v+`, and write a training loop that calls `backward` on a loss node and nudges the leaf values by `-lr * grad`. One caveat: gradients accumulate into `val-grad`, so zero them between training steps — a one-line `zero-grad` walk over the topo list.
+This is Andrej Karpathy's *micrograd* idea, ported to Lisp. To grow it into a trainable neuron: add `v-tanh` or `v-exp` (each needs only its local gradient), build a dot product out of `v*` and `v+`, and write a training loop that calls `backward` on a loss node and nudges the leaf values by `-lr * grad`. One caveat: gradients accumulate into `val-grad`, so zero them between training steps using a one-line `zero-grad` walk over the topo list.
 
 {appendix}
 
-# Loading Everything Interactively
+# Loading Everything Interactively to Experiment with all Book Examples at Once
 
 File: `load.lisp`
 
-All sixteen example programs in this book (every file except `load.lisp` itself — the seventeenth file) end with demo calls, which is convenient for scripts but annoying when you want every definition in one REPL without the demos firing. `load.lisp` solves that with a simple trick: read each file form by form, and `eval` only the definition forms.
+All sixteen example programs in this book (every file except `load.lisp` itself: the seventeenth file) end with demo calls, which is convenient for scripts but annoying when you want every definition in one REPL without the demos firing. `load.lisp` solves that with a simple trick: read each file form by form, and `eval` only the definition forms.
 
 ## The Code
 
@@ -1890,11 +1886,11 @@ All sixteen example programs in this book (every file except `load.lisp` itself 
 
 ## How It Works
 
-- The loader finds its own directory with `*load-truename*`, iterates every `.lisp` file except itself, and reads forms with `(read s nil s)` — using the stream itself as the eof marker, a classic idiom.
+- The loader finds its own directory with `*load-truename*`, iterates every `.lisp` file except itself, and reads forms with `(read s nil s)`, that is, using the stream itself as the eof marker, a classic idiom.
 - Only forms whose `car` is in the whitelist (`defun`, `defstruct`, `defvar`, `defparameter`, ...) get evaluated. Top-level demo calls are simply skipped, which is exactly why the book's files can each end in executable demos yet still be loaded en masse.
 - `*package*` is bound to `cl-user` while reading, so symbols read consistently no matter what package the REPL is in.
 - `*help*` is a data-driven catalog: one-entry sublists are section headers (file names), two-entry sublists are `(signature . description)` pairs.
-- `help` prints everything, or only rows matching a filter string (matched case-insensitively against both signature and description), and returns `(values)` — no return value — to keep the REPL tidy.
+- `help` prints everything, or only rows matching a filter string (matched case-insensitively against both signature and description), and returns `(values)` (no return value) to keep the REPL tidy.
 
 ## Running It
 
@@ -1911,7 +1907,7 @@ The filter is an ordinary substring match, so `(help "search")` conveniently sur
 
 ## Using It
 
-Treat `load.lisp` as a workbench: load everything once, then mix the chapters in a single session. For example, rank documents with BM25 and summarize the hits — two chapters composed with no glue code (real transcript):
+Treat `load.lisp` as a workbench: load everything once, then mix the chapters in a single session. For example, rank documents with BM25 and summarize the hits, in this case, examples from two chapters composed with no glue code (real transcript):
 
 ```lisp
 * (defparameter *corpus*
@@ -1923,4 +1919,4 @@ Treat `load.lisp` as a workbench: load everything once, then mix the chapters in
 ("Deep learning models require automatic differentiation and gradient optimization.")
 ```
 
-Other one-liners to try: `(summarize (page-text url) 3)`, `(backward e)` after building a graph with `v+` and `v*`. The selective-`eval` trick itself is worth stealing for your own script collections: it turns a directory of runnable programs into an importable library without touching the files.
+Other one-liners to try: `(summarize (page-text url) 3)`, `(backward e)` after building a graph with `v+` and `v*`. The selective-`eval` trick itself is worth using for your own script collections: it turns a directory of runnable programs into an importable library without touching the files.
