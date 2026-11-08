@@ -16,7 +16,7 @@ I thank my wife Carol Watson for her support and editorial help.
 
 # Introduction
 
-This is a book of small, complete Common Lisp programs. Every chapter is one self-contained `.lisp` file — most are well under 100 lines — that you can read end to end in a few minutes and run immediately with `sbcl --script`. Nothing is elided: each chapter lists the entire program, explains how it works, shows what running it looks like, and suggests ways to use and extend it.
+This is a book of small, complete Common Lisp programs. Every chapter is one self-contained `.lisp` file (most are well under 100 lines) that you can read end to end in a few minutes and run immediately with `sbcl --script`. Nothing is elided: each chapter lists the entire program, explains how it works, shows what running it looks like, and suggests ways to use and extend it.
 
 The examples are deliberately practical. They call large language models (Apple's on-device model, Google Gemini, local Ollama models), query web search APIs and SPARQL knowledge graphs, scrape and render web pages, automate macOS applications, and implement classic algorithms from scratch: Bayesian inference, BM25 document ranking, a Hopfield network, a triple store, a vector store, an extractive summarizer, symbolic polynomial calculus, and reverse-mode automatic differentiation.
 
@@ -24,13 +24,13 @@ A stylistic note: the network-facing examples shell out to `curl` (via `uiop:run
 
 ## What you need
 
-- **SBCL** — every program runs with `sbcl --script filename.lisp`.
-- **Quicklisp** — needed by the Gemini, Ollama, search, SPARQL, and web-scraping examples.
-- **curl** — used as the HTTP client by every network example.
-- **API keys in environment variables** — `GOOGLE_API_KEY` for Gemini, `EXA_SEARCH_API_KEY` and `BRAVE_SEARCH_API_KEY` for the web search chapter.
-- **Ollama** — a locally running Ollama server for the Ollama chapter.
-- **Lightpanda** — the Lightpanda headless browser binary for that chapter.
-- **macOS** — for the AppleScript automation and Apple Foundation Model chapters.
+- SBCL: every program runs with `sbcl --script filename.lisp`.
+- Quicklisp: needed by the Gemini, Ollama, search, SPARQL, and web-scraping examples.
+- curl: used as the HTTP client by every network example.
+- API keys in environment variables: `GOOGLE_API_KEY` for Gemini, `EXA_SEARCH_API_KEY` and `BRAVE_SEARCH_API_KEY` for the web search chapter.
+- Ollama: a locally running Ollama server for the Ollama chapter.
+- Lightpanda: the Lightpanda headless browser binary for that chapter.
+- macOS: for the AppleScript automation and Apple Foundation Model chapters.
 
 Every program begins with a comment showing exactly how to run it. The chapters are independent, read them in any order. If you would rather load every definition into one REPL session and experiment interactively, see the last chapter on `load.lisp`. On my system, I load `load.lisp` in my SBCL `.sbclrc` file: with the exported **help** function I can use any of the code in this book during interactive coding sessions.
 
