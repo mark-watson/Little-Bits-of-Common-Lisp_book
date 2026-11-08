@@ -50,13 +50,13 @@ Every program begins with a comment showing exactly how to run it. The chapters 
 
 The examples live in the `SHORTEST_CODE` directory of the author's `common-lisp-experiments` GitHub monorepo.
 
-# On-Device AI with Apple Foundation Models
+# On-device AI with Apple foundation models
 
 File: `apple-system-model.lisp`
 
 Recent versions of macOS ship with Apple's on-device foundation model, exposed to scripts through the `fm` command-line tool. This nine-line program is the shortest LLM client in the book: no API key, no network, no bill.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script apple-system-model.lisp (macOS Apple Foundation Model)
@@ -71,13 +71,13 @@ Recent versions of macOS ship with Apple's on-device foundation model, exposed t
 (print (apple-fm "what is 1 + 10?"))
 ```
 
-## How It Works
+## How it works
 
 - `(require :asdf)` makes UIOP available; `uiop:run-program` is the workhorse used throughout this book to run external commands and capture their output.
 - `apple-fm` runs `fm respond --no-stream <prompt>`, capturing standard output as a string with `:output :string`. The `--no-stream` flag makes `fm` print the whole reply at once instead of streaming tokens.
 - `string-trim` removes the whitespace and newline that `fm` adds around the reply.
 
-## Running It
+## Running it
 
 You need macOS with Apple Intelligence enabled and the `fm` tool license accepted (`sudo fm license`). Then:
 
@@ -91,7 +91,7 @@ The program prints the model's reply as a Lisp string:
 "1 + 10 is 11."
 ```
 
-## Using It
+## Using it
 
 Because the model runs entirely on your Mac, this is a good choice for prompts you do not want to leave the machine: summarizing private notes, classifying local documents, or glue intelligence inside shell-style Lisp scripts. The trade-offs are a small model with limited capability compared to hosted models, and no control over temperature or system prompts through this simple interface. For anything heavier, see the Gemini and Ollama chapters that follow.
 
@@ -101,7 +101,7 @@ File: `gemini.lisp`
 
 This program calls Google's Gemini API and parses the JSON reply, in eighteen lines including the demo call.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script gemini.lisp   (needs Quicklisp + GOOGLE_API_KEY)
@@ -132,7 +132,7 @@ This program calls Google's Gemini API and parses the JSON reply, in eighteen li
 (print (gemini "what is 1 + 10?"))
 ```
 
-## How It Works
+## How it works
 
 - `#-quicklisp` reads as "if Quicklisp is not already loaded": when run as a script, load `~/quicklisp/setup.lisp` first. This idiom lets the same file work both as a script and inside a REPL that already has Quicklisp.
 - `com.inuoe.jzon` is a fast, sane JSON library. `jzon:parse` turns JSON into hash tables and vectors; `jzon:stringify` turns a Lisp string into a properly escaped JSON string literal.
@@ -140,7 +140,7 @@ This program calls Google's Gemini API and parses the JSON reply, in eighteen li
 - `curl -s` POSTs to the `generateContent` endpoint with the API key in the `x-goog-api-key` header, read from the environment with `uiop:getenv`.
 - The reply is nested JSON: `candidates[0].content.parts[0].text`. The final expression walks that structure with `gethash` and `aref`.
 
-## Running It
+## Running it
 
 ```bash
 $ export GOOGLE_API_KEY=...   # from https://aistudio.google.com
@@ -153,7 +153,7 @@ Actual output (the exact wording varies from run to run, as with any language mo
 "1 + 10 = 11"
 ```
 
-## Using It
+## Using it
 
 Pass a second argument to switch models: `(gemini "summarize this file" "gemini-3.5-flash")`. The function composes well with the file-based examples later in the book: summarize the output of the web-scraping chapter, or answer questions about documents ranked by the BM25 chapter. Errors (a missing key, a rate limit) come back as JSON without a `candidates` field, so a production version should check for that before walking the hash tables.
 
@@ -163,7 +163,7 @@ File: `ollama.lisp`
 
 The same pattern as the Gemini chapter, but pointed at a model running on your own machine via Ollama's HTTP API.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script ollama.lisp   (needs Quicklisp + local Ollama)
@@ -190,14 +190,14 @@ The same pattern as the Gemini chapter, but pointed at a model running on your o
 (print (ollama "what is 1 + 10?"))
 ```
 
-## How It Works
+## How it works
 
 - Ollama serves a local HTTP API on port 11434. The `/api/generate` endpoint takes a model name and a prompt.
 - `"stream":false` asks for the complete reply in one JSON document instead of a stream of token fragments, which is much easier to handle with a single `jzon:parse`.
 - `"think":false` disables the reasoning trace on models that support it (like the Qwen 3 family), so the `response` field contains just the answer.
 - The reply's `response` key holds the generated text, which is all this program returns.
 
-## Running It
+## Running it
 
 Install Ollama, pull the model (`ollama pull qwen3.5:4b`), make sure the server is running, then:
 
@@ -211,17 +211,17 @@ Actual output (the exact wording varies from run to run):
 "The result of $1 + 10$ is **11**."
 ```
 
-## Using It
+## Using it
 
 Local models are private, free per call, and work offline, which is ideal for batch jobs over local documents (pair this with the summarizer or vector-store chapters). Swap the model name to use anything you have pulled: `(ollama "hi" "llama3.2")`. Latency depends on your hardware; small 4B-class models are comfortable on a laptop.
 
-# Web Search with Exa and Brave
+# Web search with Exa and Brave
 
 File: `search.lisp`
 
 Two search-engine APIs, one calling convention: both `esearch` and `bsearch` take a query string and return a list of `(title url text)` triples.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script search.lisp (Exa and Brave Search APIs)
@@ -276,14 +276,14 @@ Two search-engine APIs, one calling convention: both `esearch` and `bsearch` tak
 (print (bsearch "Sedona Arizona hiking" 3))
 ```
 
-## How It Works
+## How it works
 
 - `curl-json` is a tiny but genuinely reusable helper: run `curl -s` with any argument list, parse the reply as JSON. `list*` prepends `"curl" "-s"` to whatever arguments the caller supplies.
 - `results` normalizes both APIs into the same shape. The two engines differ in one detail (Exa's page content comes back under the key `text`, Brave's snippet under `description`) so the text key is a parameter.
 - `esearch` POSTs JSON, asking Exa to include up to 300 characters of page text per hit.
 - `bsearch` uses `curl -G` with `--data-urlencode` for a properly URL-encoded GET request that is the right tool when parameters go in the query string rather than a JSON body.
 
-## Running It
+## Running it
 
 ```bash
 $ export EXA_SEARCH_API_KEY=...
@@ -329,7 +329,7 @@ Trailhead is a 20 minute drive from the <strong>Cathedral Rock
 Trail</strong>head and has about 40 parking spots."))
 ```
 
-## Using It
+## Using it
 
 These two functions are building blocks for retrieval-augmented generation: search, then stuff the `(title url text)` triples into a prompt for the Gemini or Ollama chapters. Exa is a semantic/neural search engine and tends to find topically related pages even without keyword overlap; Brave is a classic keyword index with independent coverage of the web. Running both and merging results is a cheap way to improve recall.
 
@@ -339,7 +339,7 @@ File: `sparql.lisp`
 
 DBpedia and Wikidata are enormous public knowledge graphs, and both answer SPARQL queries over HTTP. This program turns a query string into a list of Lisp association lists.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script sparql.lisp   (needs Quicklisp + curl)
@@ -378,13 +378,13 @@ DBpedia and Wikidata are enormous public knowledge graphs, and both answer SPARQ
          "wd:Q5284 rdfs:label ?label FILTER(LANG(?label) = \"en\") }")))
 ```
 
-## How It Works
+## How it works
 
 - The request is a GET with the query URL-encoded via `--data-urlencode`, and an `Accept` header asking for the standard JSON results format. A descriptive `User-Agent` (`-A`) is good manners and some endpoints, Wikidata in particular, ask for one.
 - In the JSON results format, each solution is an object mapping variable names to binding objects; the binding's `value` key holds the lexical form. The inner `loop` flattens that into the Lisp-native `(variable . value)` alist shape.
 - `dbpedia` and `wikidata` are one-line specializations of `sparql` for the two endpoints.
 
-## Running It
+## Running it
 
 ```bash
 $ sbcl --script sparql.lisp
@@ -402,17 +402,17 @@ The second asks Wikidata for the English label of the entity `wd:Q5284` (Bill Ga
 ((("label" . "Bill Gates")))
 ```
 
-## Using It
+## Using it
 
 Structured knowledge graphs complement the statistical text sources in the rest of this book: SPARQL gives you precise, citable facts rather than snippets. Try asking DBpedia for the abstract of a topic (`dbo:abstract`), or use Wikidata's `wdt:` property paths to walk relationships. The triple-store chapter later in the book implements a miniature version of this same idea (pattern matching with variables) over in-memory data.
 
-# JavaScript-Rendered Pages with Lightpanda
+# JavaScript-rendered pages with Lightpanda
 
 File: `lightpanda.lisp`
 
 Some pages barely exist until JavaScript runs. Lightpanda is a lightweight headless browser built for exactly this case; here Lisp drives it as a subprocess.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script lightpanda.lisp   (needs the lightpanda binary on PATH)
@@ -435,12 +435,12 @@ Some pages barely exist until JavaScript runs. Lightpanda is a lightweight headl
 (print (links (lightpanda "https://markwatson.com/")))
 ```
 
-## How It Works
+## How it works
 
 - `lightpanda fetch` renders the page (JavaScript included) and dumps it in one of four formats: raw `html`, a `markdown` conversion, or the `semantic_tree` variants that expose the page's structure. `--log_level warn` keeps diagnostics off standard output so the return value is clean.
 - `links` is a deliberately simple string scan, not an HTML parser: `search` finds each `href="` marker and `position` finds the closing quote. For well-formed output from a renderer this is fine; for arbitrary wild HTML, use the real parser in the web-scraping chapter instead.
 
-## Running It
+## Running it
 
 Install Lightpanda so the `lightpanda` binary is on your `PATH`, then:
 
@@ -497,17 +497,17 @@ The second prints a list of the page's href strings as actual output (abridged):
  "https://leanpub.com/u/markwatson" "/flagstaff.html" "/privacy.html")
 ```
 
-## Using It
+## Using it
 
 The `markdown` dump is the interesting one for AI pipelines: it converts a JavaScript-heavy page into compact text you can feed straight to a model from the Gemini or Ollama chapters. The author's separate `lightpanda` project in the same monorepo wraps the browser's full Chrome DevTools Protocol interface (clicking, typing, screenshots); this chapter is the eighty-twenty version.
 
-# Web Scraping with Plump
+# Web scraping with Plump
 
 File: `webscraping.lisp`
 
 When a page is plain HTML, you do not need a browser at all: fetch with `curl`, parse into a real DOM with Plump, and walk the tree.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script webscraping.lisp   (needs Quicklisp + curl)
@@ -559,7 +559,7 @@ When a page is plain HTML, you do not need a browser at all: fetch with `curl`, 
 (format t "~%~%~a~%" (page-text "https://markwatson.com"))
 ```
 
-## How It Works
+## How it works
 
 - Three libraries do the heavy lifting: `plump` parses HTML into a DOM, `clss` adds CSS-selector queries over that DOM, and `cl-ppcre` provides regular expressions for whitespace cleanup.
 - `fetch` runs `curl -sL` (following redirects) with a browser-like `User-Agent`, and parses the reply.
@@ -567,7 +567,7 @@ When a page is plain HTML, you do not need a browser at all: fetch with `curl`, 
 - `clean` post-processes: strip leading/trailing spaces on each line, collapse runs of three or more newlines into a single blank line, trim the ends.
 - `headers` shows off `clss`: one CSS selector grabs all `h1`–`h6` elements.
 
-## Running It
+## Running it
 
 ```bash
 $ sbcl --script webscraping.lisp
@@ -608,7 +608,7 @@ CompassLabs.
 ...
 ```
 
-## Using It
+## Using it
 
 `page-text` is a good front end for the summarizer chapter: summarize any web page with `(summarize (page-text url) 3)`. `headers` alone is handy for skimming a page's structure. The trade-off versus the Lightpanda chapter: this approach is faster and has no external binary dependency, but it never runs JavaScript.
 
@@ -618,7 +618,7 @@ File: `osascript.lisp`
 
 macOS exposes Mail, Calendar, Reminders, Messages, and Safari to AppleScript. The utility `osascript` runs AppleScript from the command line. From Lisp, that means every one of those apps is one `uiop:run-program` call away.
 
-## The Code
+## The code
 
 ```lisp
 ;;;; osascript.lisp -- tiny macOS automation via osascript.
@@ -730,7 +730,7 @@ error \"Safari page did not load within ~d seconds\""
 ;;               (uiop:getenv "LEANPUB_PASSWORD"))
 ```
 
-## How It Works
+## How it works
 
 - `osascript` (the Lisp function) captures stdout, stderr, and the exit code separately via `multiple-value-bind`; a non-zero exit signals a Lisp error carrying AppleScript's own error message.
 - The `~S` format directive is the elegant trick in this file: it prints a Lisp string as a quoted, escaped string literal, which is *also* valid AppleScript (and JavaScript) syntax. That makes string interpolation into scripts safe and readable.
@@ -738,7 +738,7 @@ error \"Safari page did not load within ~d seconds\""
 - `read-recent-imessages` bypasses AppleScript entirely and queries Messages' SQLite database directly with `sqlite3 -json` which is why it needs Full Disk Access. `check-type` guards the `limit` parameter that gets spliced into SQL.
 - `safari-login` opens a page, polls `document.readyState` every half second until the page loads (or errors after `timeout` seconds), then runs JavaScript that fills the username/password fields and submits the form.
 
-## Running It
+## Running it
 
 Load the file in a REPL rather than as a script, since the examples at the bottom are commented out. You will need to grant your terminal Automation permission (macOS will prompt the first time), Full Disk Access for `read-recent-imessages`, and enable *Safari → Develop → Allow JavaScript from Apple Events* for `safari-login`.
 
@@ -750,11 +750,11 @@ Load the file in a REPL rather than as a script, since the examples at the botto
 
 The `"11"` above is real output, verified by running it. The remaining functions are shown as calls rather than transcripts because their results depend on your machine's live state (inbox count, today's calendar) or change it (sending a message, adding a reminder) so try them in your own REPL.
 
-## Using It
+## Using it
 
 This chapter is a template more than a toolkit: any AppleScript you find online can be wrapped in the same way. Keep credentials in environment variables (as the final example shows) rather than in source. Combining these functions with an LLM chapter is fertile ground: summarize today's calendar, get notified in iMessage when a script finishes, or check in on your Leanpub royalties automatically.
 
-# Bayesian Inference
+# Bayesian inference
 
 File: `bayes.lisp`
 
@@ -768,7 +768,7 @@ P(H \mid E) = \frac{P(E \mid H) \, P(H)}{P(E)}
 
 The program works with whole distributions at once: a distribution is an alist of `(hypothesis . probability)` pairs, and the denominator `P(E)`$ is handled implicitly by normalizing after the update.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script bayes.lisp (Bayesian inference)
@@ -808,14 +808,14 @@ The program works with whole distributions at once: a distribution is an alist o
           (car (map-hypothesis post2))))
 ```
 
-## How It Works
+## How it works
 
 - `bayes-update` multiplies each prior probability by the likelihood of the evidence under that hypothesis, then `bayes-normalize` divides through by the total so the probabilities sum to one again. That product-then-normalize pair *is* Bayes' theorem.
 - The likelihood is passed in as a function, so the same updater works for any hypothesis/evidence types.
 - `map-hypothesis` returns the most probable pair that is the maximum a posteriori (MAP) estimate.
 - `reduce` with `:key #'cdr` sums probabilities without a loop; the `~{...~^, ~}` format directive prints the alist as a comma-separated table.
 
-## Running It
+## Running it
 
 ```bash
 $ sbcl --script bayes.lisp
@@ -837,11 +837,11 @@ P(D \mid +) = \frac{0.95 \cdot 0.01}{0.95 \cdot 0.01 + 0.05 \cdot 0.99} \approx 
 
 Feeding the posterior back in as the new prior for a second independent positive test (`post2`) raises the probability to about 78%.
 
-## Using It
+## Using it
 
 Swap in your own hypotheses and likelihoods: spam classification, sensor fusion, diagnosis with more than two hypotheses. The one caveat is the independence assumption: sequential `bayes-update` calls treat each piece of evidence as conditionally independent given the hypothesis, so correlated evidence (say, the same test run twice) will overconfidently multiply.
 
-# Ranking Documents with BM25
+# Ranking documents with BM25
 
 File: `bm25.lisp`
 
@@ -861,7 +861,7 @@ and the score of document `d`$ for query `q`$ is:
 
 with the standard defaults `k_1 = 1.5`$ and `b = 0.75`$.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script bm25.lisp   (Okapi BM25 document ranking)
@@ -930,14 +930,14 @@ with the standard defaults `k_1 = 1.5`$ and `b = 0.75`$.
       (format t "  [score: ~5,3f] ~a~%" (first hit) (second hit)))))
 ```
 
-## How It Works
+## How it works
 
 - `tokenize` is a hand-rolled scanner written with `loop`: accumulate alphanumeric characters (downcased), and emit a word whenever a non-alphanumeric character ends the run.
 - `idf` is defined locally with `labels` since it closes over the document set; it counts how many documents contain the term with `count-if`.
 - The scoring `loop` iterates documents, raw strings, and lengths in parallel (`for ... for ... for ...`), computing each document's score as a sum over unique query terms. `remove-duplicates` on the query terms prevents a repeated word from double-counting.
 - The `k_1`$ parameter controls term-frequency saturation and `b`$ controls how much long documents are penalized relative to the average length `\mathrm{avgdl}`$.
 
-## Running It
+## Running it
 
 ```bash
 $ sbcl --script bm25.lisp
@@ -962,11 +962,11 @@ Query: "learning"
 
 Note how "search ranking" ranks the BM25 document first even though the query words appear in other documents too; note that `idf` rewards discriminative terms.
 
-## Using It
+## Using it
 
 BM25 is a strong baseline for any local keyword-search task: your notes, a documentation set, log files. It also complements the vector-store chapter nicely, and indeed, hybrid search systems routinely merge BM25 (exact keyword match) with embedding similarity (semantic match). The `(score document)` pairs come back sorted, ready to truncate to a top-`k`$ list.
 
-# Associative Memory with Hopfield Networks
+# Associative memory with Hopfield networks
 
 File: `hopfield.lisp`
 
@@ -986,7 +986,7 @@ E(s) = -\frac{1}{2} \sum_{i=1}^{N} \sum_{j=1}^{N} w_{ij}\, s_i\, s_j
 
 so the state slides downhill into a stored pattern.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script hopfield.lisp (Hopfield associative neural network)
@@ -1048,14 +1048,14 @@ so the state slides downhill into a stored pattern.
   (format t "~%Recovered perfectly? ~a~%" (equal recalled pattern-x)))
 ```
 
-## How It Works
+## How it works
 
 - `hopfield-train` accumulates the outer product of each pattern into an `N \times N`$ weight matrix, skipping the diagonal so the entire learning rule is one `incf`.
 - `hopfield-recall` copies the input (so the caller's list is not mutated) and runs `steps` sweeps of synchronous updates; `(if (>= sum 0) 1 -1)` is the sign activation.
 - `hopfield-energy` computes the Lyapunov function above which is useful for watching recall make progress, as the demo shows.
 - `show-pattern` renders a bipolar list as a `#`/`.` grid.
 
-## Running It
+## Running it
 
 ```bash
 $ sbcl --script hopfield.lisp
@@ -1087,17 +1087,17 @@ Recovered perfectly? T
 
 The corrupted pattern starts at energy `-52.0`; five update sweeps pull it back to the stored `X` at energy `-144.0`, recovering the original exactly.
 
-## Using It
+## Using it
 
 Hopfield networks are lovely teaching tools for attractor dynamics, Hebbian learning, and energy minimization - and all in sixty lines! Practically, their capacity is limited (roughly `0.15N`$ random patterns before interference sets in), but the same outer-product idea reappears in modern associative-memory and attention literature. Try training on the `O` pattern, corrupting *it*, and confirming recall lands in the right attractor; then push past capacity and watch it create spurious mixtures.
 
-# A Tiny Triple Store
+# A tiny triple store
 
 File: `triple-store.lisp`
 
 An RDF-style triple store with a pattern-matching query engine in under thirty lines: variables, unification against the store, and relational joins across multiple patterns.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script triple-store.lisp (in-memory RDF triple store)
@@ -1165,14 +1165,14 @@ An RDF-style triple store with a pattern-matching query engine in under thirty l
           (cdr (assoc '?job b))))
 ```
 
-## How It Works
+## How it works
 
 - The store `*store*` is just a list of `(subject predicate object)` triples; `add-triple` pushes onto it. The `store-var` parameter defaults to the special variable but lets you keep several stores.
 - A "variable" is any symbol whose name starts with `?` (`var-p`) that is a lightweight convention borrowed from SPARQL.
 - `match-triple` unifies one pattern against one triple given a binding environment (an alist): a variable already bound must match its binding, an unbound variable gets bound, a literal must be `equal`. It returns the extended environment or the keyword `:fail`.
 - `query-triples` is where the join happens: it threads a *list* of environments through the pattern list. For each pattern it tries every triple against every live environment (on a `copy-alist`, so failed branches never pollute sibling bindings) and keeps the successes. Two patterns mentioning the same variable therefore act as a relational join.
 
-## Running It
+## Running it
 
 ```bash
 $ sbcl --script triple-store.lisp
@@ -1199,11 +1199,11 @@ Query 3: All people in Paris and their occupations:
 
 Query 2 is the one to study: `?who` gets bound by the first pattern, and the second pattern only succeeds where that same binding is a philosopher and in this example Descartes alone survives this filter.
 
-## Using It
+## Using it
 
 This is the core of a miniature Datalog. Extend it with recursive rules or negation-as-failure and you have a little logic language; point it at the output of the SPARQL chapter and you can cache and join remote knowledge-graph results locally. For a handful of triples in a script, it is often all the "database" you need.
 
-# A Tiny Vector Store
+# A tiny vector store
 
 File: `vector-store.lisp`
 
@@ -1215,7 +1215,7 @@ Cosine similarity measures the angle between two vectors, ignoring their magnitu
 \mathrm{cosine}(a, b) = \frac{a \cdot b}{\lVert a \rVert \, \lVert b \rVert}
 ```
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script vector-store.lisp (in-memory dense vector store)
@@ -1267,14 +1267,14 @@ Cosine similarity measures the angle between two vectors, ignoring their magnitu
             (first hit) (second hit) (third hit))))
 ```
 
-## How It Works
+## How it works
 
 - `v-dot` iterates two vectors in lockstep with `loop ... across`, and `v-norm` reuses it for the Euclidean norm `\lVert a \rVert = \sqrt{a \cdot a}`$.
 - `v-cosine` guards against division by zero: a zero vector is defined to have similarity `0.0`$ with everything.
 - The store maps `id` to `(text vector)` in an `equal` hash table, so string IDs work. `store-add` coerces lists to vectors so callers can pass either.
 - `store-search` scores every entry, sorts descending, and returns the top `k`$ as `(score id text)` triples. `min` keeps `subseq` in bounds when the store holds fewer than `k`$ items.
 
-## Running It
+## Running it
 
 ```bash
 $ sbcl --script vector-store.lisp
@@ -1298,11 +1298,11 @@ Query 2: Sweet fruit concept #(0.05 0.10 0.85 0.90)
 
 The demo uses hand-made 4D vectors whose axes loosely encode royalty, gender, and fruitiness. Query 1 (high royalty, female) ranks "queen" and "princess" above "king"; query 2 ranks the fruits above everything.
 
-## Using It
+## Using it
 
 Replace the toy vectors with real embeddings from an API (Gemini and Ollama both offer embedding endpoints) and this exact code becomes a semantic search engine over your documents: chunk text, embed each chunk, `store-add`, then `store-search` with the embedded question. Brute-force scoring is fine for thousands of vectors; beyond this limit, look at approximate-nearest-neighbor indexes — the interface here (add, search top-`k`$) is designed to look like one.
 
-# Extractive Text Summarization
+# Extractive text summarization
 
 File: `summarizer.lisp`
 
@@ -1314,7 +1314,7 @@ A classic pre-neural trick: score each sentence by the average frequency of its 
 
 where `\mathrm{freq}(w)`$ counts occurrences of word `w`$ across the whole document, ignoring a small stop-word list.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script summarizer.lisp (extractive text summarization)
@@ -1395,7 +1395,7 @@ where `\mathrm{freq}(w)`$ counts occurrences of word `w`$ across the whole docum
     (format t "  • ~a~%" s)))
 ```
 
-## How It Works
+## How it works
 
 - `words` and `split-sentences` are the same hand-rolled scanner pattern as the BM25 chapter: `loop` over characters, accumulate, emit on boundaries. Sentences break on `.`, `!`, or `?`.
 - Frequencies accumulate in an `equal` hash table, skipping `*stop-words*` so common function words do not dominate the scores.
@@ -1403,7 +1403,7 @@ where `\mathrm{freq}(w)`$ counts occurrences of word `w`$ across the whole docum
 - The last expression is the subtle part: `sort` by score descending, take the top `n` with `subseq`, then `sort` *again* by the original sentence index ascending. That second sort restores document order so the summary reads naturally.
 - `summarize` never mutates its input; the scoring triples `(score idx s)` carry the index through both sorts.
 
-## Running It
+## Running it
 
 ```bash
 $ sbcl --script summarizer.lisp
@@ -1419,11 +1419,11 @@ Extractive 2-Sentence Summary:
   • Common Lisp continues to empower developers to build complex symbolic and numerical systems with high productivity.
 ```
 
-## Using It
+## Using it
 
 Feed it the output of the example in the web-scraping chapter — `(summarize (page-text url) 3)` summarizes a web page `url` without any AI service. It also works as a compression stage in front of an LLM: extract the top sentences locally, then ask Gemini or Ollama for an abstractive rewrite of just those. Adjust `*stop-words*` for your domain, and treat the sentence splitter as a heuristic (abbreviations like "Dr." will fool it).
 
-# Symbolic Polynomial Math
+# Symbolic polynomial math
 
 File: `symbolic-math.lisp`
 
@@ -1441,7 +1441,7 @@ and definite integrals evaluate the antiderivative at the endpoints:
 \int_a^b p(x)\, dx = F(b) - F(a)
 ```
 
-## The Code
+## The code
 
 ```lisp
 ;;;; symbolic-math.lisp: symbolic polynomial calculus.
@@ -1532,7 +1532,7 @@ and definite integrals evaluate the antiderivative at the endpoints:
           (critical-point-p p 0)))
 ```
 
-## How It Works
+## How it works
 
 - `normalize` is the invariant-keeper: it sums coefficients per exponent in a hash table, drops zero coefficients, and sorts by descending exponent. Every constructor and arithmetic function funnels through it, so polynomials are always in canonical form.
 - `poly` builds a polynomial from coefficients highest-degree first: `(poly 3 -1 5)` means `3x^2 - x + 5`$.
@@ -1542,7 +1542,7 @@ and definite integrals evaluate the antiderivative at the endpoints:
 - `critical-point-p` checks whether `p'(x) = 0`$ within a tolerance; for a quadratic, the exact answer: `p'(x) = 6x - 1 = 0`$ at `x = 1/6`$.
 - `->string` and `integral->string` are pure `format` exercises: `~@[...~]` prints a group only when its argument is non-nil, which is how the variable and exponent appear conditionally. Note the literal-minded `3x^2 + -1x + 5` in the output below: `->string` never special-cases negative coefficients so teaching it to print `- x` instead of `+ -1x` is a good first exercise.
 
-## Running It
+## Running it
 
 ```bash
 $ sbcl --script symbolic-math.lisp
@@ -1571,11 +1571,11 @@ Check the seventh line against the symbolic answer:
 
 The exact rational antiderivative (`-1/2x^2`, `5/2x^2` in the output) is visible before evaluation converts anything to floats.
 
-## Using It
+## Using it
 
 Handy for checking calculus homework, generating exact examples for teaching material, or serving as the symbolic core of a bigger system. Natural extensions: polynomial multiplication (convolve the alists), rational functions as pairs of polynomials, or a `solve` for quadratic roots. The representation decision (canonical alists) is what keeps every operation a one-liner; it is worth studying as much as the calculus.
 
-# Scalar Automatic Differentiation
+# Scalar automatic differentiation
 
 File: `autograd.lisp`
 
@@ -1583,7 +1583,7 @@ The engine inside every neural-network library, in sixty lines: build a computat
 
 Each node records its value, its parents, and a closure implementing the *local* gradient of its operation. Reverse-mode differentiation seeds the output's gradient at `1`$ and propagates backward: for `c = a \cdot b`$ the local rules are `\partial c / \partial a = b`$ and `\partial c / \partial b = a`$; for addition both partials are `1`$; for `\mathrm{relu}`$ the gradient flows only where the output is positive.
 
-## The Code
+## The code
 
 ```lisp
 ;; sbcl --script autograd.lisp   (scalar automatic differentiation DAG)
@@ -1652,14 +1652,14 @@ Each node records its value, its parents, and a closure implementing the *local*
   (format t "  de/db = ~4,2f  (expected a = 2.0)~%" (val-grad b)))
 ```
 
-## How It Works
+## How it works
 
 - `defstruct` with a renamed internal constructor `%val` is a common Lisp pattern: the public function `val` then acts as a smart constructor that coerces numbers to floats and passes existing nodes through untouched. That is what lets `v+` accept `(v+ 2 x)` as easily as `(v+ x y)`.
 - Each operation builds its output node, then installs a `backward` closure capturing the inputs. The closure *accumulates* (`incf`) into parent gradients rather than assigning. And this is required for correctness when a value feeds into the graph more than once.
 - `backward` does a depth-first topological sort of the graph (`labels` defines the local recursive `build`; an `eq` hash table tracks visited nodes), seeds the root's gradient at `1.0`$, and fires the closures in reverse-topological order (i.e., root first) so every node's gradient is final before its own closure runs.
 - `op` is stored purely for inspection/debugging; the computation lives entirely in the closures.
 
-## Running It
+## Running it
 
 ```bash
 $ sbcl --script autograd.lisp
@@ -1700,19 +1700,19 @@ and since `e = d`$ here (the relu is in its linear region), the chain rule gives
 
 Please note, dear reader, that this matches the program exactly.
 
-## Using It
+## Using it
 
 This is Andrej Karpathy's *micrograd* idea, ported to Lisp. To grow it into a trainable neuron: add `v-tanh` or `v-exp` (each needs only its local gradient), build a dot product out of `v*` and `v+`, and write a training loop that calls `backward` on a loss node and nudges the leaf values by `-lr * grad`. One caveat: gradients accumulate into `val-grad`, so zero them between training steps using a one-line `zero-grad` walk over the topo list.
 
 {appendix}
 
-# Loading Everything Interactively to Experiment with all Book Examples at Once
+# Loading everything interactively to experiment with all book examples at once
 
 File: `load.lisp`
 
 All sixteen example programs in this book (every file except `load.lisp` itself: the seventeenth file) end with demo calls, which is convenient for scripts but annoying when you want every definition in one REPL without the demos firing. `load.lisp` solves that with a simple trick: read each file form by form, and `eval` only the definition forms.
 
-## The Code
+## The code
 
 ```lisp
 ;; (load "load.lisp") then (help): loads definitions from every file,
@@ -1884,7 +1884,7 @@ All sixteen example programs in this book (every file except `load.lisp` itself:
   (values))
 ```
 
-## How It Works
+## How it works
 
 - The loader finds its own directory with `*load-truename*`, iterates every `.lisp` file except itself, and reads forms with `(read s nil s)`, that is, using the stream itself as the eof marker, a classic idiom.
 - Only forms whose `car` is in the whitelist (`defun`, `defstruct`, `defvar`, `defparameter`, ...) get evaluated. Top-level demo calls are simply skipped, which is exactly why the book's files can each end in executable demos yet still be loaded en masse.
@@ -1892,7 +1892,7 @@ All sixteen example programs in this book (every file except `load.lisp` itself:
 - `*help*` is a data-driven catalog: one-entry sublists are section headers (file names), two-entry sublists are `(signature . description)` pairs.
 - `help` prints everything, or only rows matching a filter string (matched case-insensitively against both signature and description), and returns `(values)` (no return value) to keep the REPL tidy.
 
-## Running It
+## Running it
 
 ```lisp
 * (load "load.lisp")
@@ -1905,7 +1905,7 @@ All sixteen example programs in this book (every file except `load.lisp` itself:
 
 The filter is an ordinary substring match, so `(help "search")` conveniently surfaces both the web-search APIs and the two local retrieval engines. Calling `(help)` with no argument prints the whole catalog grouped by file.
 
-## Using It
+## Using it
 
 Treat `load.lisp` as a workbench: load everything once, then mix the chapters in a single session. For example, rank documents with BM25 and summarize the hits, in this case, examples from two chapters composed with no glue code (real transcript):
 
