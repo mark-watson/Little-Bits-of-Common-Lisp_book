@@ -10,13 +10,14 @@
            "\"stream\":false,\"think\":false}"))
          (body (format nil fmt
                        (com.inuoe.jzon:stringify model)
-                       (com.inuoe.jzon:stringify prompt))))
-    (gethash "response"
-             (com.inuoe.jzon:parse
-              (uiop:run-program
-               (list "curl" "-s"
-                     "http://localhost:11434/api/generate"
-                     "-d" body)
-               :output :string)))))
+                       (com.inuoe.jzon:stringify prompt)))
+         (j (com.inuoe.jzon:parse
+             (uiop:run-program
+              (list "curl" "-s"
+                    "http://localhost:11434/api/generate"
+                    "-d" body)
+              :output :string))))
+    (or (gethash "response" j)
+        (error "Ollama: ~a" (gethash "error" j)))))
 
 (print (ollama "what is 1 + 10?"))

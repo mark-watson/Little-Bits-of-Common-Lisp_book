@@ -5,7 +5,7 @@
 (defun fetch (url)
   (plump:parse
    (uiop:run-program
-    (list "curl" "-sL" "-A" "Mozilla/5.0" url) :output :string)))
+    (list "curl" "-fsL" "-A" "Mozilla/5.0" url) :output :string)))
 
 (defun text (node)
   "Text of NODE, skipping boilerplate; block tags become newlines."
@@ -37,11 +37,16 @@
     (cl-ppcre:regex-replace-all "(?m)^ +| +$" s "")
     (format nil "~%~%"))))
 
-(defun headers (url)
+(defun dom (page)
+  "PAGE is either a URL string or an already-parsed plump DOM."
+  (if (stringp page) (fetch page) page))
+
+(defun headers (page)
   (map 'list (lambda (h) (clean (text h)))
-       (clss:select "h1,h2,h3,h4,h5,h6" (fetch url))))
+       (clss:select "h1,h2,h3,h4,h5,h6" (dom page))))
 
-(defun page-text (url) (clean (text (fetch url))))
+(defun page-text (page) (clean (text (dom page))))
 
-(print (headers "https://markwatson.com"))
-(format t "~%~%~a~%" (page-text "https://markwatson.com"))
+(let ((root (fetch "https://markwatson.com")))
+  (print (headers root))
+  (format t "~%~%~a~%" (page-text root)))

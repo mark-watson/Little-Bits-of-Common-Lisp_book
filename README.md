@@ -44,7 +44,7 @@ All programs run on SBCL. Several programs need Quicklisp to fetch light utility
 | `search.lisp` | `curl` | `com.inuoe.jzon` | `EXA_SEARCH_API_KEY`, `BRAVE_SEARCH_API_KEY` |
 | `sparql.lisp` | `curl` | `com.inuoe.jzon` | None |
 | `lightpanda.lisp` | `lightpanda` binary | None | None |
-| `webscraping.lisp` | `curl` | `plump` | None |
+| `webscraping.lisp` | `curl` | `plump`, `clss`, `cl-ppcre` | None |
 | `osascript.lisp` | macOS, `osascript` | None | None |
 | `bayes.lisp` | None | None | None |
 | `bm25.lisp` | None | None | None |

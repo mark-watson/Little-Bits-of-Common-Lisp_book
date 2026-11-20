@@ -6,7 +6,8 @@
   (let* ((base
           "https://generativelanguage.googleapis.com/v1beta/models/")
          (url (format nil "~a~a:generateContent" base model))
-         (key (uiop:getenv "GOOGLE_API_KEY"))
+         (key (or (uiop:getenv "GOOGLE_API_KEY")
+                  (error "GOOGLE_API_KEY is not set")))
          (body (format nil
                        "{\"contents\":[{\"parts\":[{\"text\":~a}]}]}"
                        (com.inuoe.jzon:stringify prompt)))
@@ -16,11 +17,15 @@
                     "-H" "Content-Type: application/json"
                     "-H" (format nil "x-goog-api-key: ~a" key)
                     "-d" body)
-              :output :string))))
+              :output :string)))
+         (candidates (gethash "candidates" j)))
+    (unless candidates
+      (error "Gemini: ~a"
+             (let ((e (gethash "error" j)))
+               (if e (gethash "message" e) "no candidates in reply"))))
     (gethash "text"
              (aref (gethash "parts"
-                            (gethash "content"
-                                     (aref (gethash "candidates" j) 0)))
+                            (gethash "content" (aref candidates 0)))
                    0))))
 
 (print (gemini "what is 1 + 10?"))

@@ -3,7 +3,8 @@
 (ql:quickload :com.inuoe.jzon :silent t)
 
 (defun sparql (endpoint query)
-  "Returns a list of rows, each row an alist of (variable . value)."
+  "Returns a list of rows, each row an alist of (variable . value),
+with variables in SELECT order. Unbound variables are omitted."
   (let* ((cmd (list "curl" "-s" "-G" endpoint
                     "-H" "Accept: application/sparql-results+json"
                     "-A" "sparql.lisp/1.0 (Common Lisp example)"
@@ -11,12 +12,13 @@
                     (concatenate 'string "query=" query)))
          (raw (uiop:run-program cmd :output :string))
          (json (com.inuoe.jzon:parse raw))
+         (vars (gethash "vars" (gethash "head" json)))
          (bindings (gethash "bindings" (gethash "results" json))))
     (map 'list
          (lambda (row)
-           (loop for var being the hash-keys of row
-                 using (hash-value b)
-                 collect (cons var (gethash "value" b))))
+           (loop for var across vars
+                 for b = (gethash var row)
+                 when b collect (cons var (gethash "value" b))))
          bindings)))
 
 (defun dbpedia (query)

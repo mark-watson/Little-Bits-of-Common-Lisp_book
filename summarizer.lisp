@@ -48,7 +48,7 @@
                                      (float (length ws))))
                   collect (list score idx s))))
       (mapcar #'third
-              (sort (subseq (sort scored #'> :key #'first)
+              (sort (subseq (stable-sort scored #'> :key #'first)
                             0 (min n (length scored)))
                     #'< :key #'second)))))
 

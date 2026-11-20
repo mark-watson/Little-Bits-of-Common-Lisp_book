@@ -17,27 +17,30 @@
          (n (length corpus))
          (lens (mapcar #'length docs))
          (avgdl (/ (reduce #'+ lens) (float (max 1 n))))
-         (q-terms (remove-duplicates (tokenize query) :test #'string=)))
-    (labels ((idf (term)
-               (let ((df (count-if (lambda (d)
-                                     (member term d :test #'string=))
-                                   docs)))
-                 (log (+ 1.0 (/ (+ (- n df) 0.5) (+ df 0.5)))))))
-      (sort (loop for doc in docs
-                  for raw in corpus
-                  for len in lens
-                  for score =
-                  (loop for term in q-terms
-                        for tf = (count term doc :test #'string=)
-                        when (> tf 0)
-                        sum (* (idf term)
-                               (/ (* tf (+ k1 1.0))
-                                  (+ tf (* k1
-                                           (+ (- 1.0 b)
-                                              (* b (/ len avgdl))))))))
-                  when (> score 0.0)
-                  collect (list score raw))
-            #'> :key #'car))))
+         (idfs                          ; ((term . idf) ...), once per term
+           (loop for term in (remove-duplicates (tokenize query)
+                                                :test #'string=)
+                 for df = (count-if (lambda (d)
+                                      (member term d :test #'string=))
+                                    docs)
+                 collect (cons term
+                               (log (+ 1.0 (/ (+ (- n df) 0.5)
+                                              (+ df 0.5))))))))
+    (sort (loop for doc in docs
+                for raw in corpus
+                for len in lens
+                for score =
+                (loop for (term . idf) in idfs
+                      for tf = (count term doc :test #'string=)
+                      when (> tf 0)
+                      sum (* idf
+                             (/ (* tf (+ k1 1.0))
+                                (+ tf (* k1
+                                         (+ (- 1.0 b)
+                                            (* b (/ len avgdl))))))))
+                when (> score 0.0)
+                collect (list score raw))
+          #'> :key #'car)))
 
 ;; Demo: Document corpus search
 (let ((corpus

@@ -1,6 +1,8 @@
 ;; sbcl --script vector-store.lisp (in-memory dense vector store)
 
 (defun v-dot (a b)
+  (unless (= (length a) (length b))
+    (error "Vector lengths differ: ~d vs ~d" (length a) (length b)))
   (loop for x across a for y across b sum (* x y)))
 
 (defun v-norm (a)

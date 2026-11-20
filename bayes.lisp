@@ -2,6 +2,8 @@
 
 (defun bayes-normalize (dist)
   (let ((sum (reduce #'+ dist :key #'cdr)))
+    (when (zerop sum)
+      (error "The evidence has zero probability under every hypothesis"))
     (mapcar (lambda (p) (cons (car p) (/ (cdr p) sum))) dist)))
 
 (defun bayes-update (dist evidence likelihood-fn)

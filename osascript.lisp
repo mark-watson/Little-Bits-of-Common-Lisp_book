@@ -1,4 +1,6 @@
 ;;;; osascript.lisp -- tiny macOS automation via osascript.
+;;;; A library, not a script: (load "osascript.lisp") in a REPL,
+;;;; then try the calls in the Examples comment at the bottom.
 ;;;; Needs Automation permission for your terminal:
 ;;;; System Settings > Privacy & Security.
 ;;;; READ-RECENT-IMESSAGES also needs Full Disk Access; SAFARI-LOGIN
@@ -12,9 +14,10 @@
                         :output :string
                         :error-output :string
                         :ignore-error-status t)
-    (if (zerop code)
-        (string-trim '(#\Space #\Newline) out)
-        (error "osascript: ~a" err))))
+    (flet ((trim (s) (string-trim '(#\Space #\Newline #\Return) s)))
+      (if (zerop code)
+          (trim out)
+          (error "osascript: ~a" (trim err))))))
 
 ;;; ~S quotes Lisp strings as valid AppleScript and JavaScript literals.
 (defun mail-unread-count ()

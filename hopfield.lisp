@@ -8,14 +8,22 @@
           (unless (= i j)
             (incf (aref w i j) (* (nth i p) (nth j p)))))))))
 
-(defun hopfield-recall (w input &optional (steps 5))
+(defun hopfield-recall (w input &optional (max-sweeps 10))
+  "Update neurons one at a time, in place, until a full sweep changes
+nothing. Returns the final state and the number of sweeps used."
   (let ((state (copy-seq input))
         (n (length input)))
-    (dotimes (_ steps state)
-      (dotimes (i n)
-        (let ((sum (loop for j below n
-                         sum (* (aref w i j) (nth j state)))))
-          (setf (nth i state) (if (>= sum 0) 1 -1)))))))
+    (dotimes (sweep max-sweeps (values state max-sweeps))
+      (let ((changed nil))
+        (dotimes (i n)
+          (let* ((sum (loop for j below n
+                            sum (* (aref w i j) (nth j state))))
+                 (new (if (>= sum 0) 1 -1)))
+            (unless (= new (nth i state))
+              (setf (nth i state) new
+                    changed t))))
+        (unless changed
+          (return (values state (1+ sweep))))))))
 
 (defun hopfield-energy (w state)
   (- (* 0.5
@@ -43,15 +51,16 @@
        ;; Corrupt pattern-x by flipping 3 bits (indices 0, 5, 10)
        (noisy (let ((cp (copy-seq pattern-x)))
                 (dolist (idx '(0 5 10) cp)
-                  (setf (nth idx cp) (- (nth idx cp))))))
-       (recalled (hopfield-recall w noisy)))
+                  (setf (nth idx cp) (- (nth idx cp)))))))
   (format t "Original Pattern 'X' (Energy: ~,1f):~%"
           (hopfield-energy w pattern-x))
   (show-pattern pattern-x)
   (format t "~%Noisy Pattern with 3 bit-flips (Energy: ~,1f):~%"
           (hopfield-energy w noisy))
   (show-pattern noisy)
-  (format t "~%Recalled Associative Memory (Energy: ~,1f):~%"
-          (hopfield-energy w recalled))
-  (show-pattern recalled)
-  (format t "~%Recovered perfectly? ~a~%" (equal recalled pattern-x)))
+  (multiple-value-bind (recalled sweeps) (hopfield-recall w noisy)
+    (format t "~%Recalled Associative Memory (Energy: ~,1f):~%"
+            (hopfield-energy w recalled))
+    (show-pattern recalled)
+    (format t "~%Recovered perfectly? ~a (stable after ~d sweeps)~%"
+            (equal recalled pattern-x) sweeps)))

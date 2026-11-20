@@ -1,4 +1,4 @@
-;;;; symbolic-math.lisp: symbolic polynomial calculus.
+;; sbcl --script symbolic-math.lisp   (symbolic polynomial calculus)
 ;;;; Polynomials are alists ((exponent . coefficient) ...):
 ;;;; descending exponents, like terms combined, zeros dropped.
 ;;;; 3x^2 - x + 5 = ((2 . 3) (1 . -1) (0 . 5))
@@ -19,6 +19,10 @@
 (defun scale (p k)
   (normalize (loop for (e . c) in p collect (cons e (* k c)))))
 (defun p- (p q)      (p+ p (scale q -1)))
+(defun p* (p q)                         ; every term times every term
+  (normalize (loop for (e1 . c1) in p
+                   append (loop for (e2 . c2) in q
+                                collect (cons (+ e1 e2) (* c1 c2))))))
 (defun degree (p)    (if p (caar p) -1))
 (defun evaluate (p x) (loop for (e . c) in p sum (* c (expt x e))))
 
@@ -38,8 +42,11 @@
              collect (cons (1+ e) (/ c (1+ e))))
        (1- n))))
 
-(defun bound (b)
-  (case b (:pi pi) (:e (exp 1d0)) (t (float b 1d0))))
+(defun bound (b)                        ; rationals stay exact
+  (case b
+    (:pi pi)
+    (:e (exp 1d0))
+    (t (if (rationalp b) b (float b 1d0)))))
 
 (defun definite (p a b)
   (let ((f (integ p)))
@@ -49,16 +56,27 @@
   (< (abs (evaluate (deriv p) x)) tol))
 
 ;;; Display
+(defun term->string (e c v)             ; magnitude only: 3x^2, x, 5
+  (let ((m (abs c)))
+    (format nil "~:[~a~;~*~]~@[~(~a~)~]~@[^~a~]"
+            (and (= m 1) (> e 0)) m     ; hide a coefficient of 1
+            (and (> e 0) v)
+            (and (> e 1) e))))
+
 (defun ->string (p &optional (v 'x))
   (if (null p) "0"
-      (format nil "~{~a~^ + ~}"
-              (loop for (e . c) in p
-                    collect (format nil "~a~@[~(~a~)~]~@[^~a~]"
-                                    c (and (> e 0) v)
-                                    (and (> e 1) e))))))
+      (with-output-to-string (out)
+        (loop for (e . c) in p
+              for first = t then nil
+              do (write-string (cond ((not first)
+                                      (if (minusp c) " - " " + "))
+                                     ((minusp c) "-")
+                                     (t ""))
+                               out)
+                 (write-string (term->string e c v) out)))))
 
 (defun integral->string (p &optional a b (v 'x))
-  (flet ((show (b) (case b (:pi "π") (:e "e") (t b))))
+  (flet ((show (limit) (case limit (:pi "π") (:e "e") (t limit))))
     (format nil "∫~@[[~{~a~^,~}]~](~a) d~(~a~)"
             (and a (list (show a) (show b)))
             (->string p v)
@@ -70,6 +88,7 @@
   (format t "p          : ~a~%" (->string p))
   (format t "p + q      : ~a~%" (->string (p+ p q)))
   (format t "p - q      : ~a~%" (->string (p- p q)))
+  (format t "p * q      : ~a~%" (->string (p* p q)))
   (format t "2p         : ~a~%" (->string (scale p 2)))
   (format t "degree, p(2): ~a, ~a~%" (degree p) (evaluate p 2))
   (format t "p', p'', p''': ~a | ~a | ~a~%"

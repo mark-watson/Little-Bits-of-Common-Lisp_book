@@ -1,20 +1,22 @@
 ;; sbcl --script triple-store.lisp (in-memory RDF triple store)
 
+;; A store is a list of (subject predicate object) triples.
+;; To keep several stores, rebind it: (let ((*store* nil)) ...)
 (defvar *store* nil)
 
-(defun add-triple (s p o &optional (store-var '*store*))
-  (push (list s p o) (symbol-value store-var)))
+(defun add-triple (s p o)
+  (push (list s p o) *store*))
 
 (defun var-p (x)
   (and (symbolp x) (char= (char (symbol-name x) 0) #\?)))
 
 (defun match-triple (pat triple env)
+  "ENV extended so that PAT matches TRIPLE, or :FAIL."
   (loop for p in pat for x in triple
-        do (cond ((eq env :fail) (return :fail))
-                 ((var-p p)
+        do (cond ((var-p p)
                   (let ((b (assoc p env)))
-                    (if b (unless (equal (cdr b) x) (return :fail))
-                        (push (cons p x) env))))
+                    (cond ((null b) (push (cons p x) env))
+                          ((not (equal (cdr b) x)) (return :fail)))))
                  ((not (equal p x)) (return :fail)))
         finally (return env)))
 
@@ -25,9 +27,7 @@
        (loop for env in envs
              append
              (loop for tr in store
-                   for next-env = (match-triple (car patterns)
-                                                tr
-                                                (copy-alist env))
+                   for next-env = (match-triple (car patterns) tr env)
                    unless (eq next-env :fail) collect next-env)))))
 
 ;; Demo: Knowledge graph of thinkers, occupations, and cities

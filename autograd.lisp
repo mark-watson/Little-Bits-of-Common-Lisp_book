@@ -56,7 +56,7 @@
   (format t "Forward:  d = (a * b) + c = (~a * ~a) + ~a = ~a~%"
           (val-data a) (val-data b) (val-data c) (val-data d))
   (format t "          e = relu(d) = ~a~%" (val-data e))
-  (format t "Gradients after e.backward():~%")
+  (format t "Gradients after (backward e):~%")
   (format t "  de/de = ~4,2f~%" (val-grad e))
   (format t "  de/dd = ~4,2f~%" (val-grad d))
   (format t "  de/dc = ~4,2f  (expected 1.0)~%" (val-grad c))

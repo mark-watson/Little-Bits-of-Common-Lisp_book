@@ -2,10 +2,11 @@
 (require :asdf)
 
 (defun lightpanda (url &optional (dump "html"))
-  "DUMP is one of: html, markdown, semantic_tree, semantic_tree_text."
+  "DUMP is a text format: html, markdown, semantic_tree,
+semantic_tree_text, or structured_data."
   (uiop:run-program
    (list "lightpanda" "fetch" "--dump" dump
-         "--log_level" "warn" url)
+         "--log-level" "warn" url)
    :output :string))
 
 (defun links (html)

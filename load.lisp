@@ -11,8 +11,10 @@
           (loop for form = (read s nil s) until (eq form s)
                 when (and (consp form)
                           (member (car form)
-                                  '(defun defstruct defvar defparameter
-                                    defpackage in-package require load
+                                  '(defun defmacro defstruct defclass
+                                    defgeneric defmethod defvar
+                                    defparameter defconstant defpackage
+                                    in-package require load
                                     ql:quickload)))
                   do (eval form)))))))
 
@@ -49,6 +51,8 @@
      "h1-h6 texts of a page")
     ("(page-text url)"
      "readable plain text of a page")
+    ("(dom url-or-dom)"
+     "fetch a URL, or pass a parsed DOM through")
     ("search.lisp")
     ("(esearch \"query\" [n])"
      "Exa search -> (title url text)")
@@ -58,6 +62,10 @@
      "run curl, parse JSON reply")
     ("(results items text-key)"
      "hits -> (title url text) lists")
+    ("(api-key \"ENV_VAR\")"
+     "read an env var or signal an error")
+    ("(unescape string)"
+     "decode common HTML entities")
     ("osascript.lisp")
     ("(osascript \"return 1 + 10\")"
      "run AppleScript, return stdout")
@@ -78,8 +86,8 @@
      "polynomial from coefficients")
     ("(normalize terms)"
      "combine like terms, sort")
-    ("(p+ p q ...) (p- p q)"
-     "add / subtract polynomials")
+    ("(p+ p q ...) (p- p q) (p* p q)"
+     "add / subtract / multiply polynomials")
     ("(scale p 2)"
      "multiply by a constant")
     ("(degree p) (evaluate p 2)"
@@ -91,11 +99,11 @@
     ("(bound :pi)"
      "bound -> float (numbers, :pi, :e)")
     ("(definite p 0 1)"
-     "definite integral from a to b")
+     "definite integral from a to b (exact for rationals)")
     ("(critical-point-p p 1/6)"
      "is p'(x) = 0 ?")
     ("(->string p)"
-     "p as text: 3x^2 + -1x + 5")
+     "p as text: 3x^2 - x + 5")
     ("(integral->string p 0 1)"
      "integral as text")
     ("bayes.lisp")
@@ -110,6 +118,10 @@
      "add (s p o) triple to store")
     ("(query-triples patterns [store])"
      "query graph via pattern match & relational join")
+    ("(match-triple pattern triple env)"
+     "unify one pattern with one triple -> env or :fail")
+    ("(var-p x)"
+     "is x a ?variable symbol")
     ("autograd.lisp")
     ("(val number)"
      "wrap scalar in autograd computation node")
@@ -125,8 +137,8 @@
     ("hopfield.lisp")
     ("(hopfield-train patterns size)"
      "Hebbian training -> 2D weight matrix")
-    ("(hopfield-recall w input [steps])"
-     "associative recall of corrupted pattern")
+    ("(hopfield-recall w input [max-sweeps])"
+     "recall until stable -> state, sweeps used")
     ("(hopfield-energy w state)"
      "Lyapunov energy function")
     ("(show-pattern pat [width])"
